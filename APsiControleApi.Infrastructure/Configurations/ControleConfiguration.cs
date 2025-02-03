@@ -8,6 +8,7 @@ namespace APsiControleApi.Infrastructure.Configurations
     {
         public void Configure(EntityTypeBuilder<Controle> builder)
         {
+            // Nome da tabela
             builder.ToTable("Controle");
 
             // Definição da chave primária
@@ -22,11 +23,13 @@ namespace APsiControleApi.Infrastructure.Configurations
                    .IsRequired()
                    .HasMaxLength(255);
 
-            // Configuração de relacionamento com a entidade Unidade
-            builder.HasOne(c => c.Unidade)
-                   .WithMany(u => u.Controles) // Assumindo que a Unidade tem uma coleção de Controles
-                   .HasForeignKey(c => c.UnidadeId)
-                   .OnDelete(DeleteBehavior.Restrict); // Evita exclusão em cascata
+            // Configuração da propriedade UnidadeId como chave estrangeira, sem referência de navegação
+            builder.Property(c => c.UnidadeId)
+                   .IsRequired();
+
+            // Caso você queira definir um índice para UnidadeId
+            builder.HasIndex(c => c.UnidadeId)
+                   .HasDatabaseName("IX_Controle_UnidadeId");
         }
     }
 }

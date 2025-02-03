@@ -1,8 +1,9 @@
-using APsiControleApi.Domain.Interfaces.ExternalServices;
+
 using APsiControleApi.Application.DTOs;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
+using APsiControleApi.Application.Interfaces;
 
 namespace APsiControleApi.Infrastructure.ExternalServices
 {

@@ -4,11 +4,12 @@ using System.Text;
 using APsiControleApi.Application.Interfaces;
 using APsiControleApi.Application.Services;
 using APsiControleApi.Domain.Interfaces.Repositories;
-using APsiControleApi.Domain.Interfaces.ExternalServices;
 using APsiControleApi.Infrastructure;
 using APsiControleApi.Infrastructure.Repositories;
 using APsiControleApi.Infrastructure.ExternalServices;
 using Microsoft.EntityFrameworkCore;
+using Polly;  // Necessário para as políticas de resiliência
+using Polly.Extensions.Http; 
 using AutoMapper;
 using APsiControleApi.Application.Mappings;
 using FluentValidation;
@@ -35,7 +36,6 @@ namespace APsiControleApi.API.Extensions
 
             // Configuração do AutoMapper e FluentValidation
             services.AddAutoMapper(typeof(MappingProfile));
-            services.AddValidatorsFromAssemblyContaining<CriarLicencaRequestDTOValidator>();
 
             // Registro dos Repositórios e UnitOfWork
             RegisterRepositories(services);

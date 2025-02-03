@@ -17,13 +17,6 @@ namespace APsiControleApi.Application.Mappings
             CreateMap<TagDTO, Tag>()
                 .ForMember(entity => entity.Leituras, opt => opt.Ignore());
 
-            // Mapeamento de Controle para ControleDTO
-            CreateMap<Controle, ControleDTO>()
-                .ForMember(dto => dto.UnidadeNome, opt => opt.MapFrom(src => src.Unidade.Nome));
-
-            // Mapeamento de ControleDTO para Controle
-            CreateMap<ControleDTO, Controle>()
-                .ForMember(entity => entity.Unidade, opt => opt.Ignore());
 
             // Mapeamento de Leitura para LeituraDTO
             CreateMap<Leitura, LeituraDTO>()

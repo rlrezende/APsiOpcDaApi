@@ -6,9 +6,9 @@ using AutoMapper;
 
 namespace APsiControleApi.Application.Services
 {
-    public class TagService : GenericService<Perfil, TagDTO>, ITagService
+    public class LeituraService : GenericService<Leitura, LeituraDTO>, ILeituraService
     {
-        public TagService(IGenericRepository<Tag> repository, IMapper mapper, IUserContextService userContextService)
+        public LeituraService(IGenericRepository<Leitura> repository, IMapper mapper, IUserContextService userContextService)
             : base(repository,mapper, userContextService)
         {
         }

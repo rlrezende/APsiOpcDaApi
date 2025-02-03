@@ -6,11 +6,9 @@ namespace APsiControleApi.Domain.Entities
         public string Nome { get; set; }
         public string Descricao { get; set; }
 
-        // FK para Unidade
+        // FK para Unidade, mantendo apenas o ID
         public Guid UnidadeId { get; set; }
-        public virtual Unidade Unidade { get; set; } // Propriedade virtual para lazy loading
 
-        // Construtor protegido ou público para uso com lazy loading proxies
-        protected Controle() { } // ou use public Controle() {}
+        protected Controle() { }
     }
 }
