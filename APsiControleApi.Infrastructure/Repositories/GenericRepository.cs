@@ -3,14 +3,16 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
+
 
 namespace APsiControleApi.Infrastructure.Repositories
 {
     public class GenericRepository<TEntity> : IGenericRepository<TEntity> where TEntity : class
     {
-        private readonly APsiControleApiContext _context;
-        private readonly DbSet<TEntity> _dbSet;
+        protected readonly APsiControleApiContext _context;
+        protected readonly DbSet<TEntity> _dbSet;
 
         public GenericRepository(APsiControleApiContext context)
         {
@@ -25,36 +27,37 @@ namespace APsiControleApi.Infrastructure.Repositories
 
         public async Task<IEnumerable<TEntity>> GetAllAsync()
         {
-            return await _dbSet.ToListAsync();
+            return await _dbSet.AsNoTracking().ToListAsync();
+        }
+
+        public async Task<TEntity> GetByConditionAsync(Expression<Func<TEntity, bool>> condition)
+        {
+            return await _dbSet.AsNoTracking().FirstOrDefaultAsync(condition);
         }
 
         public async Task AddAsync(TEntity entity)
         {
-            // Verifica as coleções de navegação e anexa entidades que já existem
-            foreach (var entry in _context.Entry(entity).Collections)
-            {
-                if (entry.CurrentValue != null)
-                {
-                    foreach (var relatedEntity in (IEnumerable<object>)entry.CurrentValue)
-                    {
-                        var relatedEntry = _context.Entry(relatedEntity);
-                        if (relatedEntry.State == EntityState.Detached)
-                        {
-                            // Marca como Unchanged para evitar inserção de entidades já existentes
-                            relatedEntry.State = EntityState.Unchanged;
-                        }
-                    }
-                }
-            }
-
+            AttachRelatedEntities(entity);
             await _dbSet.AddAsync(entity);
             await _context.SaveChangesAsync();
         }
 
+        public async Task AddRangeAsync(IEnumerable<TEntity> entities)
+        {
+            // Anexa as entidades relacionadas
+            foreach (var entity in entities)
+            {
+                AttachRelatedEntities(entity);
+            }
+
+            await _dbSet.AddRangeAsync(entities);
+            await _context.SaveChangesAsync();
+        }
 
         public async Task UpdateAsync(TEntity entity)
         {
-            _dbSet.Update(entity);
+            _context.Entry(entity).State = EntityState.Modified;
+            AttachRelatedEntities(entity);
             await _context.SaveChangesAsync();
         }
 
@@ -75,8 +78,31 @@ namespace APsiControleApi.Infrastructure.Repositories
         public async Task<(IEnumerable<TEntity> items, int totalItems)> GetPagedAsync(int pageIndex, int pageSize)
         {
             var totalItems = await _dbSet.CountAsync();
-            var items = await _dbSet.Skip((pageIndex - 1) * pageSize).Take(pageSize).ToListAsync();
+            var items = await _dbSet.AsNoTracking()
+                                    .Skip((pageIndex - 1) * pageSize)
+                                    .Take(pageSize)
+                                    .ToListAsync();
             return (items, totalItems);
+        }
+
+        private void AttachRelatedEntities(TEntity entity)
+        {
+            var entityEntry = _context.Entry(entity);
+
+            foreach (var navigationEntry in entityEntry.Collections)
+            {
+                if (navigationEntry.CurrentValue is IEnumerable<object> relatedEntities)
+                {
+                    foreach (var relatedEntity in relatedEntities)
+                    {
+                        var relatedEntry = _context.Entry(relatedEntity);
+                        if (relatedEntry.State == EntityState.Detached)
+                        {
+                            relatedEntry.State = EntityState.Unchanged;
+                        }
+                    }
+                }
+            }
         }
     }
 }

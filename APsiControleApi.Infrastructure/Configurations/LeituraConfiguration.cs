@@ -1,9 +1,9 @@
+using APsiControleApi.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
 namespace APsiControleApi.Infrastructure.Configurations
 {
-    using APsiControleApi.Domain.Entities;
-    using Microsoft.EntityFrameworkCore;
-    using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
     public class LeituraConfiguration : IEntityTypeConfiguration<Leitura>
     {
         public void Configure(EntityTypeBuilder<Leitura> builder)
@@ -15,16 +15,17 @@ namespace APsiControleApi.Infrastructure.Configurations
 
             // Configurações das propriedades
             builder.Property(l => l.DataLeitura)
-                   .IsRequired();
+                   .IsRequired()
+                   .HasColumnType("timestamp without time zone");  // Define o tipo de coluna no PostgreSQL
 
             builder.Property(l => l.Valor)
                    .IsRequired();
 
             // Configuração de relacionamento com a entidade Tag
             builder.HasOne(l => l.Tag)
-                   .WithMany(t => t.Leituras) // Assumindo que a Tag tem uma coleção de Leituras
+                   .WithMany(t => t.Leituras)
                    .HasForeignKey(l => l.TagId)
-                   .OnDelete(DeleteBehavior.Cascade); // Deleção em cascata para as Leituras ao remover uma Tag
+                   .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

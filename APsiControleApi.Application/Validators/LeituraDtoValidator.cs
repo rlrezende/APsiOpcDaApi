@@ -20,10 +20,6 @@ namespace APsiControleApi.Application.Validators
             RuleFor(x => x.TagId)
                 .NotEmpty().WithMessage("O identificador da tag é obrigatório.");
 
-            // Validação opcional para TagNome (se presente, deve ter no máximo 100 caracteres)
-            RuleFor(x => x.TagNome)
-                .MaximumLength(100).WithMessage("O nome da tag não pode ter mais de 100 caracteres.")
-                .When(x => !string.IsNullOrEmpty(x.TagNome));
         }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 using APsiControleApi.Application.DTOs;
 using APsiControleApi.Application.Interfaces;
@@ -41,26 +42,27 @@ namespace APsiControleApi.Application.Services
         public async Task<TDto> AddAsync(TDto dto)
         {
             var entity = _mapper.Map<TEntity>(dto);
-
-            // Define a data de criação
-            var createdDateProperty = typeof(TEntity).GetProperty("CreatedDate");
-            if (createdDateProperty != null)
-            {
-                createdDateProperty.SetValue(entity, DateTime.UtcNow);
-            }
-
-            // Atribui o EmpresaId, se necessário
-            var empresaId = _userContextService.GetEmpresaId();
-            if (empresaId.HasValue)
-            {
-                SetEmpresaIdIfExists(entity, empresaId.Value);
-            }
+            SetCreatedDate(entity);
+            SetEmpresaIdIfExists(entity);
 
             await _repository.AddAsync(entity);
             return _mapper.Map<TDto>(entity);
         }
 
-        public async Task UpdateAsync(TDto dto) 
+        public async Task AddRangeAsync(IEnumerable<TDto> dtos)
+        {
+            var entities = _mapper.Map<IEnumerable<TEntity>>(dtos);
+
+            foreach (var entity in entities)
+            {
+                SetCreatedDate(entity);
+                SetEmpresaIdIfExists(entity);
+            }
+
+            await _repository.AddRangeAsync(entities);
+        }
+
+        public async Task UpdateAsync(TDto dto)
         {
             var existingEntity = await _repository.GetByIdAsync(dto.Id);
             if (existingEntity == null)
@@ -68,22 +70,9 @@ namespace APsiControleApi.Application.Services
                 throw new InvalidOperationException("Entidade não encontrada.");
             }
 
-            // Atualiza a entidade com os dados do DTO
             _mapper.Map(dto, existingEntity);
-
-            // Define a data de atualização
-            var updatedDateProperty = typeof(TEntity).GetProperty("UpdatedDate");
-            if (updatedDateProperty != null)
-            {
-                updatedDateProperty.SetValue(existingEntity, DateTime.UtcNow);
-            }
-
-            // Atribui o EmpresaId, se necessário
-            var empresaId = _userContextService.GetEmpresaId();
-            if (empresaId.HasValue)
-            {
-                SetEmpresaIdIfExists(existingEntity, empresaId.Value);
-            }
+            SetUpdatedDate(existingEntity);
+            SetEmpresaIdIfExists(existingEntity);
 
             await _repository.UpdateAsync(existingEntity);
         }
@@ -100,13 +89,40 @@ namespace APsiControleApi.Application.Services
             return (dtos, totalItems);
         }
 
-        private void SetEmpresaIdIfExists(TEntity entity, Guid empresaId)
+        private void SetCreatedDate(TEntity entity)
+        {
+            var createdDateProperty = typeof(TEntity).GetProperty("CreatedDate");
+            if (createdDateProperty != null)
+            {
+                createdDateProperty.SetValue(entity, DateTime.UtcNow);
+            }
+        }
+
+        private void SetUpdatedDate(TEntity entity)
+        {
+            var updatedDateProperty = typeof(TEntity).GetProperty("UpdatedDate");
+            if (updatedDateProperty != null)
+            {
+                updatedDateProperty.SetValue(entity, DateTime.UtcNow);
+            }
+        }
+
+        private void SetEmpresaIdIfExists(TEntity entity)
         {
             var empresaIdProperty = typeof(TEntity).GetProperty("EmpresaId");
             if (empresaIdProperty != null && empresaIdProperty.PropertyType == typeof(Guid))
             {
-                empresaIdProperty.SetValue(entity, empresaId);
+                var empresaId = _userContextService.GetEmpresaId();
+                if (empresaId.HasValue)
+                {
+                    empresaIdProperty.SetValue(entity, empresaId.Value);
+                }
             }
+        }
+
+        public async Task<TEntity> GetByConditionAsync(Expression<Func<TEntity, bool>> condition)
+        {
+            return await _repository.GetByConditionAsync(condition);
         }
     }
 }

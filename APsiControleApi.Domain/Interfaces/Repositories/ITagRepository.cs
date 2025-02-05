@@ -4,6 +4,6 @@ namespace APsiControleApi.Domain.Interfaces.Repositories
 {
     public interface ITagRepository : IGenericRepository<Tag>
     {
-        // Métodos específicos para Perfil podem ser adicionados aqui
+        Task<(IEnumerable<Tag> items, int totalItems)> GetPagedTagsWithReadingsAsync(int pageIndex, int pageSize);
     }
 }

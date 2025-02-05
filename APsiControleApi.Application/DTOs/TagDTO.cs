@@ -9,7 +9,10 @@ namespace APsiControleApi.Application.DTOs
         public string Nome { get; set; }  // Nome da Tag
         public string Descricao { get; set; }  // Descrição da Tag
 
-        // IDs relacionados, caso aplicável
-        public ICollection<Guid> LeituraIds { get; set; }  // Exemplo de relacionamentos
+        // Novo campo para associar a unidade
+        public Guid UnidadeId { get; set; }
+
+        // Relacionamentos, se aplicável
+        public ICollection<Guid> LeituraIds { get; set; }  // IDs de leituras associadas
     }
 }

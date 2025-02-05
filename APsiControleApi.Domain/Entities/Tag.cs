@@ -12,6 +12,6 @@ namespace APsiControleApi.Domain.Entities
         // Propriedade de navegação virtual para lazy loading
         public virtual ICollection<Leitura> Leituras { get; set; }
 
-        protected Tag() { }
+        public Tag() { }
     }
 }

@@ -4,6 +4,7 @@ namespace APsiControleApi.Domain.Interfaces.Repositories
 {
     public interface ILeituraRepository : IGenericRepository<Leitura>
     {
-        // Métodos específicos para Perfil podem ser adicionados aqui
+        Task<List<Leitura>> ObterLeiturasPorPeriodoETagsAsync(Guid unidadeId, DateTime dataInicio, DateTime dataFim, List<Guid> tagIds);
+        
     }
 }
