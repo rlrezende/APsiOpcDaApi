@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Threading.Tasks;
 using AutoMapper;
+using APsiControleApi.Domain.Enum;
 
 namespace APsiControleApi.API.Controllers
 {
@@ -60,7 +61,7 @@ namespace APsiControleApi.API.Controllers
         /// <returns>Relatório de correlação entre as tags</returns>
         [HttpGet("relatorio-correlacao")]
         [AllowAnonymous]
-        public async Task<IActionResult> GerarRelatorioCorrelacao(Guid unidadeId, DateTime dataInicio, DateTime dataFim, [FromQuery] List<Guid> tagIds)
+        public async Task<IActionResult> GerarRelatorioCorrelacao(Guid unidadeId, DateTime dataInicio, DateTime dataFim,int metodo, [FromQuery] List<Guid> tagIds)
         {
             if (dataInicio >= dataFim)
             {
@@ -69,7 +70,7 @@ namespace APsiControleApi.API.Controllers
 
             try
             {
-                var correlacoes = await _controleService.GerarRelatorioCorrelacaoAsync(unidadeId, dataInicio, dataFim, tagIds);
+                var correlacoes = await _controleService.GerarRelatorioCorrelacaoAsync(unidadeId, dataInicio, dataFim, tagIds, (MetodoCorrelacao)metodo);
 
             // Transformar o dicionário em uma lista de DTOs manualmente
 

@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 using APsiControleApi.Application.DTOs;
 using APsiControleApi.Application.Interfaces;
 using APsiControleApi.Domain.Entities;
+using APsiControleApi.Domain.Enum;
 using APsiControleApi.Domain.Interfaces.Repositories;
 using AutoMapper;
+using Microsoft.FSharp.Data.UnitSystems.SI.UnitNames;
 using OfficeOpenXml;
 
 namespace APsiControleApi.Application.Services
@@ -37,7 +39,7 @@ namespace APsiControleApi.Application.Services
         /// <param name="dataFim">Data final do período</param>
         /// <param name="tagIds">IDs das tags para análise</param>
         /// <returns>Relatório com os coeficientes de correlação</returns>
-        public async Task<List<CorrelacaoResultadoDTO>> GerarRelatorioCorrelacaoAsync(Guid unidadeId, DateTime dataInicio, DateTime dataFim, List<Guid> tagIds)
+        public async Task<List<CorrelacaoResultadoDTO>> GerarRelatorioCorrelacaoAsync(Guid unidadeId, DateTime dataInicio, DateTime dataFim, List<Guid> tagIds, MetodoCorrelacao metodo)
         {
                     // 1. Obter as leituras com as tags relacionadas
             var leituras = await _leituraService.ObterLeiturasPorPeriodoETagsAsync(unidadeId, dataInicio, dataFim, tagIds);
@@ -62,8 +64,28 @@ namespace APsiControleApi.Application.Services
                     var valoresTag1 = leiturasPorTag[tag1.TagId].Select(l => l.Valor).ToArray();
                     var valoresTag2 = leiturasPorTag[tag2.TagId].Select(l => l.Valor).ToArray();
 
-                    // Calcular a correlação
-                    double correlacao = CalcularCorrelacao(valoresTag1, valoresTag2);
+                    // Calcular a correlação fazer case
+                    double correlacao;
+                    int x;
+                    x=1;
+                    switch (metodo)
+                    {
+                        case MetodoCorrelacao.Pearson:
+                            correlacao = CalcularCorrelacaoPearson(valoresTag1, valoresTag2);
+                            // Lógica para o calculo da correlacao Pearson
+                            break;
+                        case MetodoCorrelacao.Spearman:
+                            correlacao = CalcularCorrelacaoSpearman(valoresTag1, valoresTag2);
+                            // Lógica para o calculo da correlacao Spearman
+                            break;
+                        case MetodoCorrelacao.Kendall:
+                            correlacao = CalcularCorrelacaoKendall(valoresTag1, valoresTag2);
+                            // Lógica para o calculo da correlacao Kendall
+                            break;
+                        default:
+                            correlacao = 0;
+                            break;
+                    }
 
                     relatorio.Add(new CorrelacaoResultadoDTO
                     {
@@ -86,7 +108,7 @@ namespace APsiControleApi.Application.Services
         /// <param name="array1">Array de valores da primeira tag</param>
         /// <param name="array2">Array de valores da segunda tag</param>
         /// <returns>Coeficiente de correlação</returns>
-        private double CalcularCorrelacao(double[] array1, double[] array2)
+        private double CalcularCorrelacaoPearson(double[] array1, double[] array2)
         {
             int n = Math.Min(array1.Length, array2.Length);
 
@@ -109,9 +131,64 @@ namespace APsiControleApi.Application.Services
             return stdX > 0 && stdY > 0 ? covariance / (stdX * stdY) : 0.0;
         }
 
+        /// <summary>
+        /// Calcula o coeficiente de correlação entre dois arrays de valores.
+        /// </summary>
+        /// <param name="array1">Array de valores da primeira tag</param>
+        /// <param name="array2">Array de valores da segunda tag</param>
+        /// <returns>Coeficiente de correlação</returns>
+        private double CalcularCorrelacaoSpearman(double[] array1, double[] array2)
+        {
+            int n = Math.Min(array1.Length, array2.Length);
 
+            double sumX = 0, sumY = 0, sumXY = 0;
+            double sumX2 = 0, sumY2 = 0;
 
-        
+            for (int i = 0; i < n; i++)
+            {
+                sumX += array1[i];
+                sumY += array2[i];
+                sumXY += array1[i] * array2[i];
+                sumX2 += array1[i] * array1[i];
+                sumY2 += array2[i] * array2[i];
+            }
+
+            double stdX = Math.Sqrt(sumX2 / n - (sumX / n) * (sumX / n));
+            double stdY = Math.Sqrt(sumY2 / n - (sumY / n) * (sumY / n));
+            double covariance = (sumXY / n) - (sumX / n) * (sumY / n);
+
+            return stdX > 0 && stdY > 0 ? covariance / (stdX * stdY) : 0.0;
+        }
+
+        /// <summary>
+        /// Calcula o coeficiente de correlação entre dois arrays de valores.
+        /// </summary>
+        /// <param name="array1">Array de valores da primeira tag</param>
+        /// <param name="array2">Array de valores da segunda tag</param>
+        /// <returns>Coeficiente de correlação</returns> Pearson, Spearman, Kendall
+        private double CalcularCorrelacaoKendall(double[] array1, double[] array2)
+        {
+            int n = Math.Min(array1.Length, array2.Length);
+
+            double sumX = 0, sumY = 0, sumXY = 0;
+            double sumX2 = 0, sumY2 = 0;
+
+            for (int i = 0; i < n; i++)
+            {
+                sumX += array1[i];
+                sumY += array2[i];
+                sumXY += array1[i] * array2[i];
+                sumX2 += array1[i] * array1[i];
+                sumY2 += array2[i] * array2[i];
+            }
+
+            double stdX = Math.Sqrt(sumX2 / n - (sumX / n) * (sumX / n));
+            double stdY = Math.Sqrt(sumY2 / n - (sumY / n) * (sumY / n));
+            double covariance = (sumXY / n) - (sumX / n) * (sumY / n);
+
+            return stdX > 0 && stdY > 0 ? covariance / (stdX * stdY) : 0.0;
+        }
+       
 
         public async Task ProcessarArquivoExcelAsync(Stream arquivoStream, Guid unidadeId)
         {

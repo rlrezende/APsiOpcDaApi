@@ -1,5 +1,6 @@
 using APsiControleApi.Application.DTOs;
 using APsiControleApi.Domain.Entities;
+using APsiControleApi.Domain.Enum;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -16,6 +17,6 @@ namespace APsiControleApi.Application.Interfaces
         /// <returns>Tarefa assíncrona representando o processamento do arquivo</returns>
         Task ProcessarArquivoExcelAsync(Stream arquivo, Guid unidadeId);
 
-         Task<List<CorrelacaoResultadoDTO>> GerarRelatorioCorrelacaoAsync(Guid unidadeId, DateTime dataInicio, DateTime dataFim, List<Guid> tagIds);
+         Task<List<CorrelacaoResultadoDTO>> GerarRelatorioCorrelacaoAsync(Guid unidadeId, DateTime dataInicio, DateTime dataFim, List<Guid> tagIds, MetodoCorrelacao metodo);
     }
 }
