@@ -110,7 +110,53 @@ namespace APsiControleApi.Application.Services
         }
 
 
+        public async Task<CorrelacaoGraficoDTO> ObterRelatorioDeCorrelacaoAsync(
+            Guid unidadeId, Guid tag1Id, Guid tag2Id, DateTime dataInicio, DateTime dataFim)
+        {
+            // 1️⃣ Obter os dados do LeituraService
+            var leituras = await _leituraService.ObterLeiturasSincronizadasEntreTagsAsync(
+                unidadeId, tag1Id, tag2Id, dataInicio, dataFim);
 
+            if (!leituras.Any())
+                throw new InvalidOperationException("Nenhuma leitura encontrada para as tags e período informados.");
+
+            // 2️⃣ Sincronizar leituras por data
+            var pontosSincronizados = leituras
+                .GroupBy(l => l.DataLeitura)
+                .Where(g => g.Select(l => l.TagId).Distinct().Count() == 2) // Apenas datas com ambas as tags
+                .Select(g => new PontoLeituraDTO
+                {
+                    DataLeitura = g.Key,
+                    ValorTag1 = g.FirstOrDefault(l => l.TagId == tag1Id)?.Valor ?? 0,
+                    ValorTag2 = g.FirstOrDefault(l => l.TagId == tag2Id)?.Valor ?? 0
+                })
+                .OrderBy(p => p.DataLeitura)
+                .ToList();
+
+            if (!pontosSincronizados.Any())
+                throw new InvalidOperationException("Nenhum ponto sincronizado encontrado entre as duas tags.");
+
+            // 3️⃣ Calcular a correlação
+            double correlacao = CalcularCorrelacao(
+                pontosSincronizados.Select(p => p.ValorTag1).ToArray(),
+                pontosSincronizados.Select(p => p.ValorTag2).ToArray()
+            );
+
+            // 4️⃣ Recuperar nomes das tags
+            var tag1Nome = leituras.FirstOrDefault(l => l.TagId == tag1Id)?.Tag?.Nome ?? "Tag 1";
+            var tag2Nome = leituras.FirstOrDefault(l => l.TagId == tag2Id)?.Tag?.Nome ?? "Tag 2";
+
+            // 5️⃣ Montar e retornar o DTO final
+            return new CorrelacaoGraficoDTO
+            {
+                Tag1Id = tag1Id,
+                Tag1Nome = tag1Nome,
+                Tag2Id = tag2Id,
+                Tag2Nome = tag2Nome,
+                ValorCorrelacao = correlacao,
+                Pontos = pontosSincronizados
+            };
+        }
         
 
         public async Task ProcessarArquivoExcelAsync(Stream arquivoStream, Guid unidadeId)

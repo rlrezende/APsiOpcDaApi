@@ -19,5 +19,7 @@ namespace APsiControleApi.Application.Interfaces
         Task ProcessarLeiturasAsync(List<ExcelWorksheet> planilhas, Guid unidadeId,  Dictionary<int, Guid> tagMap);
 
         Task<List<LeituraDTO>> ObterLeiturasPorPeriodoETagsAsync(Guid unidadeId, DateTime dataInicio, DateTime dataFim, List<Guid> tagIds);
+
+        Task<List<LeituraDTO>> ObterLeiturasSincronizadasEntreTagsAsync(Guid unidadeId, Guid tag1Id, Guid tag2Id, DateTime dataInicio, DateTime dataFim);
     }
 }

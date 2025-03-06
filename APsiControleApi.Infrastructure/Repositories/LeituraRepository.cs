@@ -47,6 +47,28 @@ namespace APsiControleApi.Infrastructure.Repositories
 
     
         }
+
+    /// <summary>
+    /// Obtém as leituras das duas tags no período informado.
+    /// </summary>
+    /// <param name="unidadeId">ID da unidade</param>
+    /// <param name="tagIds">Lista com os IDs das duas tags</param>
+    /// <param name="dataInicio">Data inicial do período</param>
+    /// <param name="dataFim">Data final do período</param>
+    /// <returns>Lista de leituras (entidades)</returns>
+    public async Task<List<Leitura>> ObterLeiturasSincronizadasEntreTagsAsync(
+        Guid unidadeId, List<Guid> tagIds, DateTime dataInicio, DateTime dataFim)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(l => tagIds.Contains(l.TagId) &&
+                        l.Tag.UnidadeId == unidadeId &&
+                        l.DataLeitura >= dataInicio &&
+                        l.DataLeitura <= dataFim)
+            .OrderBy(l => l.DataLeitura)
+            .ToListAsync();
+    }
+
         // Métodos específicos para Leitura podem ser implementados aqui
     }
 }

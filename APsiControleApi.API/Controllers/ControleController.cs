@@ -24,6 +24,39 @@ namespace APsiControleApi.API.Controllers
             _mapper = mapper;
         }
 
+
+            /// <summary>
+            /// Gera um relatório de correlação entre duas tags em um período específico.
+            /// </summary>
+            /// <param name="unidadeId">ID da unidade</param>
+            /// <param name="tag1Id">ID da primeira tag</param>
+            /// <param name="tag2Id">ID da segunda tag</param>
+            /// <param name="dataInicio">Data de início do período</param>
+            /// <param name="dataFim">Data de fim do período</param>
+            /// <returns>Relatório de correlação com os pontos sincronizados</returns>
+            [HttpGet("relatorio-correlacao-entre-tags")]
+            [AllowAnonymous]
+            public async Task<IActionResult> GerarRelatorioCorrelacaoEntreTags(
+                Guid unidadeId, Guid tag1Id, Guid tag2Id, DateTime dataInicio, DateTime dataFim)
+            {
+                if (dataInicio >= dataFim)
+                {
+                    return BadRequest("A data de início deve ser anterior à data de fim.");
+                }
+
+                try
+                {
+                    var correlacao = await _controleService.ObterRelatorioDeCorrelacaoAsync(
+                        unidadeId, tag1Id, tag2Id, dataInicio, dataFim);
+
+                    return Ok(correlacao);
+                }
+                catch (Exception ex)
+                {
+                    return StatusCode(500, $"Erro ao gerar o relatório: {ex.Message}");
+                }
+            }
+
         /// <summary>
         /// Endpoint para fazer o upload de um arquivo Excel e processar os dados.
         /// </summary>

@@ -125,6 +125,29 @@ namespace APsiControleApi.Application.Services
             return 0;
         }
 
+        /// <summary>
+        /// Obtém as leituras das duas tags no período informado, agrupadas por data.
+        /// </summary>
+        /// <param name="unidadeId">ID da unidade</param>
+        /// <param name="tag1Id">ID da primeira tag</param>
+        /// <param name="tag2Id">ID da segunda tag</param>
+        /// <param name="dataInicio">Data inicial do período</param>
+        /// <param name="dataFim">Data final do período</param>
+        /// <returns>Lista de leituras filtradas e sincronizadas</returns>
+        public async Task<List<LeituraDTO>> ObterLeiturasSincronizadasEntreTagsAsync(
+            Guid unidadeId, Guid tag1Id, Guid tag2Id, DateTime dataInicio, DateTime dataFim)
+        {
+            var leituras = await ObterLeiturasPorPeriodoETagsAsync(
+                unidadeId, dataInicio, dataFim, new List<Guid> { tag1Id, tag2Id });
+
+            // Apenas retorna os dados; não faz cálculos aqui
+            return leituras
+                .Where(l => l.TagId == tag1Id || l.TagId == tag2Id)
+                .OrderBy(l => l.DataLeitura)
+                .ToList();
+        }
+
+
 
     }
 }
