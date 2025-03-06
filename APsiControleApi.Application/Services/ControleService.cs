@@ -6,12 +6,21 @@ using System.Threading.Tasks;
 using APsiControleApi.Application.DTOs;
 using APsiControleApi.Application.Interfaces;
 using APsiControleApi.Domain.Entities;
+using APsiControleApi.Domain.Enum;
 using APsiControleApi.Domain.Interfaces.Repositories;
 using AutoMapper;
+using Microsoft.FSharp.Data.UnitSystems.SI.UnitNames;
 using OfficeOpenXml;
 
 namespace APsiControleApi.Application.Services
 {
+    public class DadosCorrelacao
+    {
+        public DateTime DataLeitura { get; set; }
+        public double ValorTag1 { get; set; }
+        public double ValorTag2 { get; set; }
+    }
+
     public class ControleService : GenericService<Controle, ControleDTO>, IControleService
     {
         private readonly ITagService _tagService;
@@ -36,8 +45,10 @@ namespace APsiControleApi.Application.Services
         /// <param name="dataInicio">Data inicial do período</param>
         /// <param name="dataFim">Data final do período</param>
         /// <param name="tagIds">IDs das tags para análise</param>
+        /// <param name="metodo">metodo considerado para o calculo da correlacao</param>
+        /// <param name="AtrasoMax">Atraso maximo considerado para o calculo da correlacao</param>
         /// <returns>Relatório com os coeficientes de correlação</returns>
-        public async Task<List<CorrelacaoResultadoDTO>> GerarRelatorioCorrelacaoAsync(Guid unidadeId, DateTime dataInicio, DateTime dataFim, List<Guid> tagIds)
+        public async Task<List<CorrelacaoResultadoDTO>> GerarRelatorioCorrelacaoAsync(Guid unidadeId, DateTime dataInicio, DateTime dataFim, List<Guid> tagIds, MetodoCorrelacao metodo, TimeSpan AtrasoMax)
         {
                     // 1. Obter as leituras com as tags relacionadas
             var leituras = await _leituraService.ObterLeiturasPorPeriodoETagsAsync(unidadeId, dataInicio, dataFim, tagIds);
@@ -57,13 +68,50 @@ namespace APsiControleApi.Application.Services
                 {
                     var tag1 = tags[i];
                     var tag2 = tags[j];
-
                     // Sincronizar os valores das duas tags pelo timestamp
-                    var valoresTag1 = leiturasPorTag[tag1.TagId].Select(l => l.Valor).ToArray();
-                    var valoresTag2 = leiturasPorTag[tag2.TagId].Select(l => l.Valor).ToArray();
+                    // var valoresTag1 = leiturasPorTag[tag1.TagId].Select(l => l.Valor).ToArray();
+                    // var valoresTags = leiturasPorTag[tag1.TagId].Select(l => (l.DataLeitura, l.Valor)).ToArray(),leiturasPorTag[tag2.TagId].Select(l => l.Valor).ToArray();
 
-                    // Calcular a correlação
-                    double correlacao = CalcularCorrelacao(valoresTag1, valoresTag2);
+                    var leiturasTag1 = leiturasPorTag[tag1.TagId].Select(l => new { l.DataLeitura, l.Valor }).ToList();
+                    var leiturasTag2 = leiturasPorTag[tag2.TagId].Select(l => new { l.DataLeitura, l.Valor }).ToList();
+
+                    var dadosCorrelacao = leiturasTag1
+                        .Join(leiturasTag2, 
+                            l1 => l1.DataLeitura, 
+                            l2 => l2.DataLeitura, 
+                            (l1, l2) => new DadosCorrelacao 
+                            {
+                                DataLeitura = l1.DataLeitura,
+                                ValorTag1 = l1.Valor,
+                                ValorTag2 = l2.Valor
+                            })
+                        .ToList();
+
+                    // Calcular a correlação fazer case
+                    TimeSpan BestLag = TimeSpan.Zero;;
+                    double BestCorrelation=0;
+                    int BestSamples=dadosCorrelacao.Count;
+                    switch (metodo)
+                     {
+                         case MetodoCorrelacao.Pearson:
+                             (BestLag, BestCorrelation,BestSamples) = CalcularCorrelacaoPearson(dadosCorrelacao, AtrasoMax);
+                             // Lógica para o calculo da correlacao Pearson
+                             break;
+                         case MetodoCorrelacao.Spearman:
+                             (BestLag, BestCorrelation,BestSamples) = CalcularCorrelacaoSpearman(dadosCorrelacao, AtrasoMax);
+                             // Lógica para o calculo da correlacao Spearman
+                             break;
+                         case MetodoCorrelacao.Kendall:
+                             (BestLag, BestCorrelation,BestSamples)  = CalcularCorrelacaoKendall(dadosCorrelacao, AtrasoMax);
+                             // Lógica para o calculo da correlacao Kendall
+                             break;
+                         default:
+                             BestLag = TimeSpan.Zero;;
+                             BestCorrelation = 0;
+                             BestSamples=dadosCorrelacao.Count;
+                             break;
+                     }
+                    
 
                     relatorio.Add(new CorrelacaoResultadoDTO
                     {
@@ -71,7 +119,9 @@ namespace APsiControleApi.Application.Services
                         Tag2Id = tag2.TagId,
                         Tag1Nome = tag1.Nome,
                         Tag2Nome = tag2.Nome,
-                        ValorCorrelacao = correlacao
+                        ValorCorrelacao = BestCorrelation,
+                        ValorAtraso = BestLag,
+                        ValorAmostras = BestSamples
                     });
                 }
             }
@@ -79,39 +129,146 @@ namespace APsiControleApi.Application.Services
             return relatorio;
         }
 
+        public int EncontrarIndicePorTimestamp(List<DadosCorrelacao> dados, TimeSpan deslocamentoTempo)
+        {
+            if (dados.Count == 0)
+                return -1; // Retorna -1 se a lista estiver vazia
+
+            DateTime dataInicial = dados[0].DataLeitura;
+            DateTime dataAlvo = dataInicial + deslocamentoTempo;
+
+            for (int i = 0; i < dados.Count; i++)
+            {
+                if (dados[i].DataLeitura >= dataAlvo)
+                    return i;
+            }
+
+            return -1; // Retorna -1 se nenhum elemento satisfizer a condição
+        }
 
         /// <summary>
         /// Calcula o coeficiente de correlação entre dois arrays de valores.
         /// </summary>
-        /// <param name="array1">Array de valores da primeira tag</param>
-        /// <param name="array2">Array de valores da segunda tag</param>
-        /// <returns>Coeficiente de correlação</returns>
-        private double CalcularCorrelacao(double[] array1, double[] array2)
+        /// <param name="dadosCorrelacao">Array de valores da primeira tag, segunda tag e o atraso mãximo</param>
+        /// <returns> Atraso e o coeficiente de correlação</returns>
+        private (TimeSpan, double,int)  CalcularCorrelacaoPearson(List<DadosCorrelacao> dadosCorrelacao, TimeSpan AtrasoMax)
         {
-            int n = Math.Min(array1.Length, array2.Length);
-
-            double sumX = 0, sumY = 0, sumXY = 0;
-            double sumX2 = 0, sumY2 = 0;
-
-            for (int i = 0; i < n; i++)
+            TimeSpan BestLag = TimeSpan.Zero;
+            double BestCorrelation = 0;
+            int BestSamples=0;
+            
+            int MaxLag=EncontrarIndicePorTimestamp(dadosCorrelacao,AtrasoMax);
+            int Lag=0;
+            for (Lag = 0; Lag <= MaxLag; Lag++)
             {
-                sumX += array1[i];
-                sumY += array2[i];
-                sumXY += array1[i] * array2[i];
-                sumX2 += array1[i] * array1[i];
-                sumY2 += array2[i] * array2[i];
+                //valoresTag1.Where(l => valoresTag2.Any(t2 => t2.DataLeitura == l.DataLeitura - atraso)).Select(l => l.Valor).ToArray();                
+                double sumX = 0, sumY = 0, sumXY = 0;
+                double sumX2 = 0, sumY2 = 0;
+                int n=dadosCorrelacao.Count-Lag;
+                BestSamples = n;
+                for (int i = 0; i < n; i++)
+                {
+                    sumX += dadosCorrelacao[i].ValorTag1;
+                    sumY += dadosCorrelacao[i+Lag].ValorTag2;
+                    sumXY += dadosCorrelacao[i].ValorTag1 * dadosCorrelacao[i+Lag].ValorTag2;
+                    sumX2 += dadosCorrelacao[i].ValorTag1 * dadosCorrelacao[i].ValorTag1;
+                    sumY2 += dadosCorrelacao[i+Lag].ValorTag2 *dadosCorrelacao[i+Lag].ValorTag2;
+                }
+                double stdX = Math.Sqrt(sumX2 / n - (sumX / n) * (sumX / n));
+                double stdY = Math.Sqrt(sumY2 / n - (sumY / n) * (sumY / n));
+                double covariance = (sumXY / n) - (sumX / n) * (sumY / n);
+                double Correlation = stdX > 0 && stdY > 0 ? covariance / (stdX * stdY) : 0.0;
+                if (Math.Abs(Correlation) > Math.Abs(BestCorrelation))
+                    {
+                        BestCorrelation = Correlation;
+                        BestLag =  dadosCorrelacao[Lag].DataLeitura - dadosCorrelacao[0].DataLeitura;
+                    }
             }
-
-            double stdX = Math.Sqrt(sumX2 / n - (sumX / n) * (sumX / n));
-            double stdY = Math.Sqrt(sumY2 / n - (sumY / n) * (sumY / n));
-            double covariance = (sumXY / n) - (sumX / n) * (sumY / n);
-
-            return stdX > 0 && stdY > 0 ? covariance / (stdX * stdY) : 0.0;
+            return (BestLag, BestCorrelation, BestSamples);
         }
 
+        /// <summary>
+        /// Calcula o coeficiente de correlação entre dois arrays de valores.
+        /// </summary>
+        /// <param name="dadosCorrelacao">Array de valores da primeira tag, segunda tag e o atraso mãximo</param>
+        /// <returns> Atraso e o coeficiente de correlação</returns>
+        private (TimeSpan, double,int)   CalcularCorrelacaoSpearman(List<DadosCorrelacao> dadosCorrelacao, TimeSpan AtrasoMax)
+        {
+            TimeSpan BestLag = TimeSpan.Zero;
+            double BestCorrelation = 0;
+            int BestSamples=0;
+            
+            int MaxLag=EncontrarIndicePorTimestamp(dadosCorrelacao,AtrasoMax);
+            int Lag=0;
+            for (Lag = 0; Lag <= MaxLag; Lag++)
+            {
+                //valoresTag1.Where(l => valoresTag2.Any(t2 => t2.DataLeitura == l.DataLeitura - atraso)).Select(l => l.Valor).ToArray();                
+                double sumX = 0, sumY = 0, sumXY = 0;
+                double sumX2 = 0, sumY2 = 0;
+                int n=dadosCorrelacao.Count-Lag;
+                BestSamples = n;
+                for (int i = 0; i < n; i++)
+                {
+                    sumX += dadosCorrelacao[i].ValorTag1;
+                    sumY += dadosCorrelacao[i+Lag].ValorTag2;
+                    sumXY += dadosCorrelacao[i].ValorTag1 * dadosCorrelacao[i+Lag].ValorTag2;
+                    sumX2 += dadosCorrelacao[i].ValorTag1 * dadosCorrelacao[i].ValorTag1;
+                    sumY2 += dadosCorrelacao[i+Lag].ValorTag2 *dadosCorrelacao[i+Lag].ValorTag2;
+                }
+                double stdX = Math.Sqrt(sumX2 / n - (sumX / n) * (sumX / n));
+                double stdY = Math.Sqrt(sumY2 / n - (sumY / n) * (sumY / n));
+                double covariance = (sumXY / n) - (sumX / n) * (sumY / n);
+                double Correlation = stdX > 0 && stdY > 0 ? covariance / (stdX * stdY) : 0.0;
+                if (Math.Abs(Correlation) > Math.Abs(BestCorrelation))
+                    {
+                        BestCorrelation = Correlation;
+                        BestLag =  dadosCorrelacao[Lag].DataLeitura - dadosCorrelacao[0].DataLeitura;
+                    }
+            }
+            return (BestLag, BestCorrelation, BestSamples);
+        }
 
-
-        
+        /// <summary>
+        /// Calcula o coeficiente de correlação entre dois arrays de valores.
+        /// </summary>
+        /// <param name="dadosCorrelacao">Array de valores da primeira tag, segunda tag e o atraso mãximo</param>
+        /// <returns> Atraso e o coeficiente de correlação</returns>
+        private (TimeSpan, double,int)   CalcularCorrelacaoKendall(List<DadosCorrelacao> dadosCorrelacao, TimeSpan AtrasoMax)
+        {
+            TimeSpan BestLag = TimeSpan.Zero;
+            double BestCorrelation = 0;
+            int BestSamples=0;
+            
+            int MaxLag=EncontrarIndicePorTimestamp(dadosCorrelacao,AtrasoMax);
+            int Lag=0;
+            for (Lag = 0; Lag <= MaxLag; Lag++)
+            {
+                //valoresTag1.Where(l => valoresTag2.Any(t2 => t2.DataLeitura == l.DataLeitura - atraso)).Select(l => l.Valor).ToArray();                
+                double sumX = 0, sumY = 0, sumXY = 0;
+                double sumX2 = 0, sumY2 = 0;
+                int n=dadosCorrelacao.Count-Lag;
+                BestSamples = n;
+                for (int i = 0; i < n; i++)
+                {
+                    sumX += dadosCorrelacao[i].ValorTag1;
+                    sumY += dadosCorrelacao[i+Lag].ValorTag2;
+                    sumXY += dadosCorrelacao[i].ValorTag1 * dadosCorrelacao[i+Lag].ValorTag2;
+                    sumX2 += dadosCorrelacao[i].ValorTag1 * dadosCorrelacao[i].ValorTag1;
+                    sumY2 += dadosCorrelacao[i+Lag].ValorTag2 *dadosCorrelacao[i+Lag].ValorTag2;
+                }
+                double stdX = Math.Sqrt(sumX2 / n - (sumX / n) * (sumX / n));
+                double stdY = Math.Sqrt(sumY2 / n - (sumY / n) * (sumY / n));
+                double covariance = (sumXY / n) - (sumX / n) * (sumY / n);
+                double Correlation = stdX > 0 && stdY > 0 ? covariance / (stdX * stdY) : 0.0;
+                if (Math.Abs(Correlation) > Math.Abs(BestCorrelation))
+                    {
+                        BestCorrelation = Correlation;
+                        BestLag =  dadosCorrelacao[Lag].DataLeitura - dadosCorrelacao[0].DataLeitura;
+                    }
+            }
+            return (BestLag, BestCorrelation, BestSamples);
+        }
+       
 
         public async Task ProcessarArquivoExcelAsync(Stream arquivoStream, Guid unidadeId)
         {
