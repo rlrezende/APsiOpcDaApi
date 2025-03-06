@@ -9,5 +9,7 @@ namespace APsiControleApi.Application.DTOs
         public string Tag1Nome { get; set; }   // Nome da primeira tag (opcional)
         public string Tag2Nome { get; set; }   // Nome da segunda tag (opcional)
         public double ValorCorrelacao { get; set; }  // Valor da correlação entre as tags
+        public TimeSpan ValorAtraso { get; set; }  // Valor do atraso entre as tags
+        public int ValorAmostras { get; set; }  // Valor do atraso entre as tags
     }
 }
