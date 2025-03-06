@@ -17,6 +17,6 @@ namespace APsiControleApi.Application.Interfaces
         /// <returns>Tarefa assíncrona representando o processamento do arquivo</returns>
         Task ProcessarArquivoExcelAsync(Stream arquivo, Guid unidadeId);
 
-         Task<List<CorrelacaoResultadoDTO>> GerarRelatorioCorrelacaoAsync(Guid unidadeId, DateTime dataInicio, DateTime dataFim, List<Guid> tagIds, MetodoCorrelacao metodo);
+         Task<List<CorrelacaoResultadoDTO>> GerarRelatorioCorrelacaoAsync(Guid unidadeId, DateTime dataInicio, DateTime dataFim, List<Guid> tagIds, MetodoCorrelacao metodo, TimeSpan AtrasoMax);
     }
 }

@@ -57,11 +57,13 @@ namespace APsiControleApi.API.Controllers
         /// <param name="unidadeId">ID da unidade</param>
         /// <param name="dataInicio">Data de início do período</param>
         /// <param name="dataFim">Data de fim do período</param>
+        /// <param name="metodo">Metodo utilizado para o calculo da correlacao</param>
+        /// <param name="AtrasoMax">Atraso maximo para considerar no calculo da correlacao</param>
         /// <param name="tagIds">Lista de IDs das tags a serem consideradas</param>
         /// <returns>Relatório de correlação entre as tags</returns>
         [HttpGet("relatorio-correlacao")]
         [AllowAnonymous]
-        public async Task<IActionResult> GerarRelatorioCorrelacao(Guid unidadeId, DateTime dataInicio, DateTime dataFim,int metodo, [FromQuery] List<Guid> tagIds)
+        public async Task<IActionResult> GerarRelatorioCorrelacao(Guid unidadeId, DateTime dataInicio, DateTime dataFim,int metodo, TimeSpan AtrasoMax, [FromQuery] List<Guid> tagIds)
         {
             if (dataInicio >= dataFim)
             {
@@ -70,7 +72,7 @@ namespace APsiControleApi.API.Controllers
 
             try
             {
-                var correlacoes = await _controleService.GerarRelatorioCorrelacaoAsync(unidadeId, dataInicio, dataFim, tagIds, (MetodoCorrelacao)metodo);
+                var correlacoes = await _controleService.GerarRelatorioCorrelacaoAsync(unidadeId, dataInicio, dataFim, tagIds, (MetodoCorrelacao)metodo, AtrasoMax);
 
             // Transformar o dicionário em uma lista de DTOs manualmente
 
