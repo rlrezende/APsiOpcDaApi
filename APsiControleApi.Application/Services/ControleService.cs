@@ -197,17 +197,16 @@ namespace APsiControleApi.Application.Services
         {
             TimeSpan BestLag = TimeSpan.Zero;
             double BestCorrelation = 0;
-            int BestSamples=0;
+            
             
             int MaxLag=EncontrarIndicePorTimestamp(dadosCorrelacao,AtrasoMax);
-            int Lag=0;
-            for (Lag = 0; Lag <= MaxLag; Lag++)
+            int BestSamples=dadosCorrelacao.Count;
+            for (int Lag = 0; Lag <= MaxLag; Lag++)
             {
                 //valoresTag1.Where(l => valoresTag2.Any(t2 => t2.DataLeitura == l.DataLeitura - atraso)).Select(l => l.Valor).ToArray();                
                 double sumX = 0, sumY = 0, sumXY = 0;
                 double sumX2 = 0, sumY2 = 0;
                 int n=dadosCorrelacao.Count-Lag;
-                BestSamples = n;
                 for (int i = 0; i < n; i++)
                 {
                     sumX += dadosCorrelacao[i].ValorTag1;
@@ -222,6 +221,7 @@ namespace APsiControleApi.Application.Services
                 double Correlation = stdX > 0 && stdY > 0 ? covariance / (stdX * stdY) : 0.0;
                 if (Math.Abs(Correlation) > Math.Abs(BestCorrelation))
                     {
+                        BestSamples = dadosCorrelacao.Count - n;
                         BestCorrelation = Correlation;
                         BestLag =  dadosCorrelacao[Lag].DataLeitura - dadosCorrelacao[0].DataLeitura;
                     }
@@ -281,17 +281,16 @@ namespace APsiControleApi.Application.Services
         {
             TimeSpan BestLag = TimeSpan.Zero;
             double BestCorrelation = 0;
-            int BestSamples=0;
+            
             
             int MaxLag=EncontrarIndicePorTimestamp(dadosCorrelacao,AtrasoMax);
-            int Lag=0;
-            for (Lag = 0; Lag <= MaxLag; Lag++)
+            int BestSamples=dadosCorrelacao.Count;
+            for (int Lag = 0; Lag <= MaxLag; Lag++)
             {
                 //valoresTag1.Where(l => valoresTag2.Any(t2 => t2.DataLeitura == l.DataLeitura - atraso)).Select(l => l.Valor).ToArray();                
                 double sumX = 0, sumY = 0, sumXY = 0;
                 double sumX2 = 0, sumY2 = 0;
                 int n=dadosCorrelacao.Count-Lag;
-                BestSamples = n;
                 for (int i = 0; i < n; i++)
                 {
                     sumX += dadosCorrelacao[i].ValorTag1;
@@ -306,6 +305,7 @@ namespace APsiControleApi.Application.Services
                 double Correlation = stdX > 0 && stdY > 0 ? covariance / (stdX * stdY) : 0.0;
                 if (Math.Abs(Correlation) > Math.Abs(BestCorrelation))
                     {
+                        BestSamples = dadosCorrelacao.Count - n;
                         BestCorrelation = Correlation;
                         BestLag =  dadosCorrelacao[Lag].DataLeitura - dadosCorrelacao[0].DataLeitura;
                     }
