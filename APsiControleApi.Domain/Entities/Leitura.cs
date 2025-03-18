@@ -1,9 +1,11 @@
+using NodaTime;
+
 namespace APsiControleApi.Domain.Entities
 {
     public class Leitura : BaseEntity
     {
         public Guid Id { get; set; }
-        public DateTime DataLeitura { get; set; }
+        public Instant DataLeitura { get; set; }
         public double Valor { get; set; }
 
         // FK para Tag

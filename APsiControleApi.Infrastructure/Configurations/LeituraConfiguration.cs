@@ -1,6 +1,8 @@
 using APsiControleApi.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using NodaTime;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace APsiControleApi.Infrastructure.Configurations
 {
@@ -14,9 +16,14 @@ namespace APsiControleApi.Infrastructure.Configurations
             builder.HasKey(l => l.Id);
 
             // Configurações das propriedades
+            var instantConverter = new ValueConverter<Instant, DateTimeOffset>(
+                v => v.ToDateTimeOffset(), // Convert from Instant to DateTimeOffset
+                v => Instant.FromDateTimeOffset(v)); // Convert from DateTimeOffset to Instant
+
             builder.Property(l => l.DataLeitura)
                    .IsRequired()
-                   .HasColumnType("timestamp without time zone");  // Define o tipo de coluna no PostgreSQL
+                   .HasConversion(instantConverter)
+                   .HasColumnType("timestamp with time zone");  // Mudança para timestamp with time zone
 
             builder.Property(l => l.Valor)
                    .IsRequired();

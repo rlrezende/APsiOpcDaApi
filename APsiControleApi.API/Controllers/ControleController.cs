@@ -96,8 +96,11 @@ namespace APsiControleApi.API.Controllers
         /// <returns>Relatório de correlação entre as tags</returns>
         [HttpGet("relatorio-correlacao")]
         [AllowAnonymous]
-        public async Task<IActionResult> GerarRelatorioCorrelacao(Guid unidadeId, DateTime dataInicio, DateTime dataFim,int metodo, TimeSpan AtrasoMax, [FromQuery] List<Guid> tagIds)
+        public async Task<IActionResult> GerarRelatorioCorrelacao(Guid unidadeId, DateTime dataInicio, DateTime dataFim,int metodo, long AtrasoMaxMs, [FromQuery] List<Guid> tagIds)
         {
+
+             TimeSpan atrasoMax = TimeSpan.FromMilliseconds(AtrasoMaxMs);
+
             if (dataInicio >= dataFim)
             {
                 return BadRequest("A data de início deve ser anterior à data de fim.");
@@ -105,7 +108,7 @@ namespace APsiControleApi.API.Controllers
 
             try
             {
-                var correlacoes = await _controleService.GerarRelatorioCorrelacaoAsync(unidadeId, dataInicio, dataFim, tagIds, (MetodoCorrelacao)metodo, AtrasoMax);
+                var correlacoes = await _controleService.GerarRelatorioCorrelacaoAsync(unidadeId, dataInicio, dataFim, tagIds, (MetodoCorrelacao)metodo, atrasoMax);
 
             // Transformar o dicionário em uma lista de DTOs manualmente
 
@@ -117,6 +120,8 @@ namespace APsiControleApi.API.Controllers
                 return StatusCode(500, $"Erro ao gerar o relatório: {ex.Message}");
             }
         }
+
+        
 
 
     }

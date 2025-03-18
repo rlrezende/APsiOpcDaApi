@@ -3,6 +3,7 @@ using System;
 using APsiControleApi.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace APsiControleApi.Infrastructure.Migrations
 {
     [DbContext(typeof(APsiControleApiContext))]
-    partial class APsiControleApiContextModelSnapshot : ModelSnapshot
+    [Migration("20250311002934_UpdateTimestampWithTimeZone")]
+    partial class UpdateTimestampWithTimeZone
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -108,9 +111,6 @@ namespace APsiControleApi.Infrastructure.Migrations
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("idOld")
-                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 

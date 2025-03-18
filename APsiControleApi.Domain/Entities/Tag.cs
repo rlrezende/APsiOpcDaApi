@@ -6,6 +6,8 @@ namespace APsiControleApi.Domain.Entities
         public string Nome { get; set; }
         public string Descricao { get; set; }
 
+        public int idOld { get; set; }
+
         // FK para Unidade, apenas o ID
         public Guid UnidadeId { get; set; }
 
