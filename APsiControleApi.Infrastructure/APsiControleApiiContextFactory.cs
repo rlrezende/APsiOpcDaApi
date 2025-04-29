@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 using System.IO;
 
 namespace APsiControleApi.Infrastructure
@@ -19,7 +20,8 @@ namespace APsiControleApi.Infrastructure
             var connectionString = configuration.GetConnectionString("DefaultConnection");
 
             // Configura o DbContext com o banco de dados usando o connection string
-            optionsBuilder.UseNpgsql(connectionString);
+            // Inclui o uso de NodaTime com a configuração do Npgsql
+            optionsBuilder.UseNpgsql(connectionString, options => options.UseNodaTime());
 
             return new APsiControleApiContext(optionsBuilder.Options);
         }

@@ -2,6 +2,7 @@ using APsiControleApi.Application.DTOs;
 using APsiControleApi.Domain.Entities;
 using AutoMapper;
 using System.Linq;
+using NodaTime;
 
 namespace APsiControleApi.Application.Mappings
 {
@@ -24,14 +25,15 @@ namespace APsiControleApi.Application.Mappings
             CreateMap<TagDTO, Tag>()
                 .ForMember(entity => entity.Leituras, opt => opt.Ignore());
 
-  // Mapeamento de Leitura para LeituraDTO, incluindo a Tag como objeto completo
-            CreateMap<Leitura, LeituraDTO>()
-                .ForMember(dto => dto.Tag, opt => opt.MapFrom(src => src.Tag));
+        // Convertendo de Leitura (Instant) para LeituraDTO (DateTime)
+        CreateMap<Leitura, LeituraDTO>()
+            .ForMember(dto => dto.DataLeitura, opt => opt.MapFrom(src => src.DataLeitura.ToDateTimeUtc()))
+            .ForMember(dto => dto.Tag, opt => opt.MapFrom(src => src.Tag));
 
-            // Mapeamento de LeituraDTO para Leitura
-            CreateMap<LeituraDTO, Leitura>()
-                .ForMember(entity => entity.Tag, opt => opt.Ignore());  // Ignora a atribuição direta da Tag, evitando problemas de referência
-            
+        // Convertendo de LeituraDTO (DateTime) para Leitura (Instant)
+        CreateMap<LeituraDTO, Leitura>()
+            .ForMember(entity => entity.DataLeitura, opt => opt.MapFrom(src => Instant.FromDateTimeUtc(src.DataLeitura.ToUniversalTime())))
+            .ForMember(entity => entity.Tag, opt => opt.Ignore());  // Ignora a atribuição direta da Tag
 
 
              // Mapeamento para CorrelacaoResultadoDTO

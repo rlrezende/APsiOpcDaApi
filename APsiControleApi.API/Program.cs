@@ -1,44 +1,50 @@
 using APsiControleApi.API.Extensions;
-using FluentValidation;
 using FluentValidation.AspNetCore;
-using APsiControleApi.Application.Validators;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Server.Kestrel.Https;
-using Microsoft.AspNetCore.Http.Features;  // Import necessário para configurar limites
+using Microsoft.AspNetCore.Http.Features;
+using APsiControleApi.API.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configuração global do limite de tamanho de requisição para Kestrel
+// Configuração do Kestrel
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
-    serverOptions.Limits.MaxRequestBodySize = null;  // Desabilita o limite global de tamanho
+    serverOptions.Limits.MaxRequestBodySize = null;
 });
 
-// Configuração global para limites de requisição em controladores
+// SignalR com erros detalhados
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = true;
+    options.EnableDetailedErrors = true;
+});
+
+// Formulário grande
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = long.MaxValue;  // Permite arquivos grandes em requisições multipart
+    options.MultipartBodyLengthLimit = long.MaxValue;
 });
 
-// Configuração dos serviços
+// Serviços da aplicação
 builder.Services.ConfigureServices(builder.Configuration);
 
-// Configuração do CORS
+// CORS para SignalR e frontend
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", builder =>
+    options.AddPolicy("CorsComAutenticacao", builder =>
     {
-        builder.AllowAnyOrigin()
-               .AllowAnyMethod()
-               .AllowAnyHeader();
+        builder
+            .WithOrigins("http://localhost:3000") // ✅ endereço exato do seu frontend
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials(); // ✅ necessário para usar token com SignalR
     });
 });
 
+// Controllers e JSON
 builder.Services.AddControllers(options =>
 {
     options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
-
-    // Desabilitar temporariamente o limite máximo de requisição por controlador
     options.MaxModelBindingCollectionSize = int.MaxValue;
 })
 .AddJsonOptions(options =>
@@ -46,30 +52,41 @@ builder.Services.AddControllers(options =>
     options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.Preserve;
 });
 
-// Configuração do FluentValidation
-builder.Services.AddFluentValidationAutoValidation()  // Habilita a validação automática do FluentValidation
-                .AddFluentValidationClientsideAdapters();  // Habilita a validação no lado cliente
+// FluentValidation
+builder.Services.AddFluentValidationAutoValidation()
+                .AddFluentValidationClientsideAdapters();
 
 var app = builder.Build();
 
-// Middleware para desabilitar o limite em tempo de execução
+// Remove limite de tamanho por request
 app.Use(async (context, next) =>
 {
     var maxRequestBodySizeFeature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
     if (maxRequestBodySizeFeature != null)
     {
-        maxRequestBodySizeFeature.MaxRequestBodySize = null;  // Remove o limite de requisição por request
+        maxRequestBodySizeFeature.MaxRequestBodySize = null;
     }
 
     await next.Invoke();
 });
 
-// Habilitar o middleware CORS antes do roteamento
-app.UseCors("AllowAll");
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseCors("CorsComAutenticacao"); // 👈 deve estar antes de routing/autenticação
+
+
+app.UseHttpsRedirection();
 
 app.UseRouting();
-app.UseAuthorization();
 
+
+app.UseAuthentication();           // ✅ ESSENCIAL para JWT + SignalR
+app.UseAuthorization();
 app.MapControllers();
+app.MapHub<TagSimulacaoHub>("/hub/tagsimulacao");
 
 app.Run();

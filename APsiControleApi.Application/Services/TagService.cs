@@ -45,13 +45,15 @@ namespace APsiControleApi.Application.Services
 
                 var nome = planilha.Cells[i, 2].Text;
                 var descricao = planilha.Cells[i, 3].Text;
+                int idOld = int.Parse(planilha.Cells[i, 1].Text);
 
                 // Cria um DTO para a tag
                 var tagDto = new TagDTO
                 {
                     Nome = nome,
                     Descricao = descricao,
-                    UnidadeId = unidadeId
+                    UnidadeId = unidadeId,
+                    idOld = idOld
                 };
 
                 // Salva a tag no banco e recupera o ID criado

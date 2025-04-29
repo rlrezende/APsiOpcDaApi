@@ -27,6 +27,9 @@ namespace APsiControleApi.Infrastructure.Configurations
             builder.Property(t => t.UnidadeId)
                    .IsRequired();
 
+             builder.Property(t => t.idOld)
+                   .IsRequired();
+
             // Opcional: índice em UnidadeId para melhorar desempenho de consultas
             builder.HasIndex(t => t.UnidadeId)
                    .HasDatabaseName("IX_Tag_UnidadeId");

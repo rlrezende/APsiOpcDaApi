@@ -15,6 +15,7 @@ using APsiControleApi.Application.Mappings;
 using FluentValidation;
 using APsiControleApi.Application.Validators;
 using Microsoft.AspNetCore.Authorization;
+using APsiControleApi.API.Services;
 
 namespace APsiControleApi.API.Extensions
 {
@@ -106,6 +107,8 @@ namespace APsiControleApi.API.Extensions
             services.AddScoped<ILeituraService, LeituraService>();
             services.AddHttpContextAccessor();
             services.AddScoped<IUserContextService, UserContextService>();
+            services.AddScoped<ISimuladorLeituraService, SimuladorLeituraService>();
+            services.AddScoped<INotificadorSimulacao, SignalRNotificadorSimulacao>();
         }
 
         private static void ConfigureAuthentication(IServiceCollection services, IConfiguration configuration)
@@ -129,7 +132,27 @@ namespace APsiControleApi.API.Extensions
                     ValidateIssuer = false,
                     ValidateAudience = false
                 };
+
+                // 🔐 Permitir o uso do token via query string (necessário para SignalR)
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+
+                        // Verifica se o request é para o hub
+                        var path = context.HttpContext.Request.Path;
+                        if (!string.IsNullOrEmpty(accessToken) &&
+                            path.StartsWithSegments("/hub/tagsimulacao"))
+                        {
+                            context.Token = accessToken;
+                        }
+
+                        return Task.CompletedTask;
+                    }
+                };
             });
         }
+
     }
 }
