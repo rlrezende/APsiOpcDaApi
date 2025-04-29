@@ -75,13 +75,16 @@ namespace APsiControleApi.API.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GerarRelatorioCorrelacao(Guid unidadeId, DateTime dataInicio, DateTime dataFim, int metodo, long atrasoMaxMs, [FromQuery] List<Guid> tagIds)
         {
+
+             TimeSpan atrasoMax = TimeSpan.FromMilliseconds(atrasoMaxMs);
+
             if (dataInicio >= dataFim)
                 return BadRequest("A data de início deve ser anterior à data de fim.");
 
             try
             {
-                var atrasoMax = TimeSpan.FromMilliseconds(atrasoMaxMs);
-                var correlacoes = await _controleService.GerarRelatorioCorrelacaoAsync(unidadeId, dataInicio, dataFim, tagIds, (MetodoCorrelacao)metodo, atrasoMax);
+                var atrasoMaxms = TimeSpan.FromMilliseconds(atrasoMaxMs);
+                var correlacoes = await _controleService.GerarRelatorioCorrelacaoAsync(unidadeId, dataInicio, dataFim, tagIds, (MetodoCorrelacao)metodo, atrasoMaxms);
                 return Ok(correlacoes);
             }
             catch (Exception ex)
