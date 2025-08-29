@@ -13,6 +13,10 @@ namespace APsiControleApi.Infrastructure
         public DbSet<Controle> Controle { get; set; }
         public DbSet<Leitura> Leitura { get; set; }
 
+        public DbSet<OpcServer> OpcServers { get; set; }
+        public DbSet<OpcNode> OpcNodes { get; set; }
+        public DbSet<OpcGroup> OpcGroups { get; set; }
+        public DbSet<OpcDiscoveredServer> OpcDiscoveredServers { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             // Definir o schema padrão
@@ -24,6 +28,10 @@ namespace APsiControleApi.Infrastructure
             modelBuilder.ApplyConfiguration(new ControleConfiguration());
             modelBuilder.ApplyConfiguration(new LeituraConfiguration());
             modelBuilder.ApplyConfiguration(new TagConfiguration());
+            modelBuilder.ApplyConfiguration(new OpcNodeConfiguration());
+            modelBuilder.ApplyConfiguration(new OpcServerConfiguration());
+            modelBuilder.ApplyConfiguration(new OpcGroupConfiguration());
+            modelBuilder.ApplyConfiguration(new OpcDiscoveredServerConfiguration());
 
             // Aplicar Seeders
             ModuloSeeder.Seed(modelBuilder);

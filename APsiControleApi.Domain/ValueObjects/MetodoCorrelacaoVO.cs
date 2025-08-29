@@ -1,5 +1,3 @@
-
-
 using APsiControleApi.Domain.Enum;
 
 namespace APsiControleApi.Domain.VO

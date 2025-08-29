@@ -11,10 +11,10 @@ namespace APsiControleApi.Infrastructure.Configurations
             // Nome da tabela
             builder.ToTable("Tag");
 
-            // Definição da chave primária
+            // Chave primária
             builder.HasKey(t => t.Id);
 
-            // Configurações das propriedades
+            // Propriedades básicas
             builder.Property(t => t.Nome)
                    .IsRequired()
                    .HasMaxLength(100);
@@ -23,22 +23,54 @@ namespace APsiControleApi.Infrastructure.Configurations
                    .IsRequired()
                    .HasMaxLength(255);
 
-            // Configuração da propriedade UnidadeId (sem referência direta à Unidade)
+            builder.Property(t => t.idOld)
+                   .IsRequired();
+
             builder.Property(t => t.UnidadeId)
                    .IsRequired();
 
-             builder.Property(t => t.idOld)
-                   .IsRequired();
-
-            // Opcional: índice em UnidadeId para melhorar desempenho de consultas
             builder.HasIndex(t => t.UnidadeId)
                    .HasDatabaseName("IX_Tag_UnidadeId");
 
-            // Relacionamento com Leituras (Uma Tag pode ter muitas Leituras)
+            builder.Property(t => t.Monitora)
+                   .IsRequired()
+                   .HasDefaultValue(false);
+
+            builder.Property(t => t.ValorAtual)
+                   .HasColumnType("double precision");
+
+            builder.Property(t => t.NodeIdOpc)
+                   .HasMaxLength(255)
+                   .HasColumnName("NodeIdOpc");
+
+            builder.Property(t => t.Origem)
+                   .IsRequired()
+                   .HasMaxLength(50)
+                   .HasDefaultValue("OPCUA");
+
+            builder.Property(t => t.NomeTabela)
+                   .HasMaxLength(100);
+
+            builder.Property(t => t.NomeColuna)
+                   .HasMaxLength(100);
+
+            // Relacionamento com OpcNode
+            builder.HasOne(t => t.Node)
+                   .WithMany()
+                   .HasForeignKey(t => t.NodeId)
+                   .OnDelete(DeleteBehavior.SetNull);
+
+            // Relacionamento com OpcGroup
+            builder.HasOne(t => t.Group)
+                   .WithMany(g => g.Tags)
+                   .HasForeignKey(t => t.GroupId)
+                   .OnDelete(DeleteBehavior.SetNull);
+
+            // Relacionamento com Leituras
             builder.HasMany(t => t.Leituras)
                    .WithOne(l => l.Tag)
                    .HasForeignKey(l => l.TagId)
-                   .OnDelete(DeleteBehavior.Cascade); // Deleta leituras ao remover uma Tag
+                   .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

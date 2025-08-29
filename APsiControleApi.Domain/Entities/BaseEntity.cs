@@ -1,4 +1,3 @@
-
 namespace APsiControleApi.Domain.Entities
 {
     public abstract class BaseEntity

@@ -1,4 +1,3 @@
-
 using APsiControleApi.Application.DTOs;
 using System.Net.Http;
 using System.Net.Http.Json;

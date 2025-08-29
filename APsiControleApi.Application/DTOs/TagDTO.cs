@@ -6,15 +6,35 @@ namespace APsiControleApi.Application.DTOs
     public class TagDTO : IIdentifiable
     {
         public Guid Id { get; set; }
-        public string Nome { get; set; }  // Nome da Tag
-        public string Descricao { get; set; }  // Descrição da Tag
+        public string Nome { get; set; } = string.Empty;
+        public string Descricao { get; set; } = string.Empty;
 
-         public int idOld { get; set; }  
+        public int idOld { get; set; }
 
-        // Novo campo para associar a unidade
+        // Campo para associar a unidade
         public Guid UnidadeId { get; set; }
 
-        // Relacionamentos, se aplicável
-        public ICollection<Guid> LeituraIds { get; set; }  // IDs de leituras associadas
+        // Opcional: identificador interno
+        public Guid? NodeId { get; set; }
+
+        // ✅ Campo que indica se a tag deve ser monitorada
+        public bool Monitora { get; set; }
+
+        // ✅ Valor atual lido da tag
+        public double? ValorAtual { get; set; }
+
+        // ✅ Identificação do grupo OPC
+        public Guid? GroupId { get; set; }
+
+        // ✅ Lista de leituras relacionadas
+        public ICollection<Guid> LeituraIds { get; set; } = new List<Guid>();
+
+        // ✅ Novo campo: NodeId real OPC UA (ex: "ns=2;s=MyDevice.Tag1")
+        public string? NodeIdOpc { get; set; }
+
+        public string Origem { get; set; } = "OPCUA"; // "OPCUA" ou "Database"
+
+        public string? NomeTabela { get; set; }
+        public string? NomeColuna { get; set; }
     }
 }

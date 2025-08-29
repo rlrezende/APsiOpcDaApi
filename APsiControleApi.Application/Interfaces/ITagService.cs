@@ -17,6 +17,11 @@ namespace APsiControleApi.Application.Interfaces
         /// <returns>Retorna um dicionário com o nome da tag e seu respectivo ID</returns>
         Task<Dictionary<int, Guid>> ProcessarTagsAsync(ExcelWorksheet planilha, Guid unidadeId);
 
-         Task<(IEnumerable<TagDTO> items, int totalItems)> GetPagedTagsWithReadingsAsync(int pageIndex, int pageSize);
+        Task<(IEnumerable<TagDTO> items, int totalItems)> GetPagedTagsWithReadingsAsync(int pageIndex, int pageSize);
+
+        Task<Guid?> GetOpcServerIdByTagIdAsync(Guid tagId);
+         
+         Task<IEnumerable<TagDTO>> GetTagsByServerAsync(Guid serverId, string origem);
+
     }
 }

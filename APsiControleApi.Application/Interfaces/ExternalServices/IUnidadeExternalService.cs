@@ -1,4 +1,3 @@
-
 using APsiControleApi.Application.DTOs;
 
 namespace APsiControleApi.Application.Interfaces

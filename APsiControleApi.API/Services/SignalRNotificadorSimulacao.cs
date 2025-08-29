@@ -17,5 +17,17 @@ namespace APsiControleApi.API.Services
         {
             await _hubContext.Clients.All.SendAsync("ReceberSimulacao", dados);
         }
+
+        public async Task NotificarAtualizacaoTagAsync(Guid tagId, double valor, DateTime dataLeitura)
+        {
+            var payload = new
+            {
+                tagId,
+                valor,
+                data = dataLeitura
+            };
+
+            await _hubContext.Clients.All.SendAsync("AtualizarTag", payload);
+        }
     }
 }

@@ -1,4 +1,3 @@
-
 namespace APsiControleApi.Domain.Interfaces.Repositories
 {
     public interface IUnitOfWork : IDisposable

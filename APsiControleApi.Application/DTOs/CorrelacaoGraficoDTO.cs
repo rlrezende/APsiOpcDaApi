@@ -9,19 +9,19 @@ namespace APsiControleApi.Application.DTOs
 
         // Informações da primeira tag
         public Guid Tag1Id { get; set; }
-        public string Tag1Nome { get; set; }
-        public string Tag1Descricao { get; set; }
+        public string Tag1Nome { get; set; } = string.Empty;
+        public string Tag1Descricao { get; set; } = string.Empty;
 
         // Informações da segunda tag
         public Guid Tag2Id { get; set; }
-        public string Tag2Nome { get; set; }
-        public string Tag2Descricao { get; set; }
+        public string Tag2Nome { get; set; } = string.Empty;
+        public string Tag2Descricao { get; set; } = string.Empty;
 
         // Valor da correlação calculada
         public double ValorCorrelacao { get; set; }
 
         // Pontos sincronizados para plotar no gráfico
-        public ICollection<PontoLeituraDTO> Pontos { get; set; }
+        public ICollection<PontoLeituraDTO> Pontos { get; set; } = new List<PontoLeituraDTO>();
     }
 
     public class PontoLeituraDTO

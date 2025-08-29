@@ -12,23 +12,32 @@ namespace APsiControleApi.Infrastructure.Configurations
         {
             builder.ToTable("Leitura");
 
-            // Definição da chave primária
+            // Chave primária
             builder.HasKey(l => l.Id);
 
-            // Configurações das propriedades
+            // Conversor de NodaTime.Instant para DateTimeOffset
             var instantConverter = new ValueConverter<Instant, DateTimeOffset>(
-                v => v.ToDateTimeOffset(), // Convert from Instant to DateTimeOffset
-                v => Instant.FromDateTimeOffset(v)); // Convert from DateTimeOffset to Instant
+                v => v.ToDateTimeOffset(),
+                v => Instant.FromDateTimeOffset(v));
 
             builder.Property(l => l.DataLeitura)
                    .IsRequired()
                    .HasConversion(instantConverter)
-                   .HasColumnType("timestamp with time zone");  // Mudança para timestamp with time zone
+                   .HasColumnType("timestamp with time zone");
 
+            // Valor numérico principal
             builder.Property(l => l.Valor)
                    .IsRequired();
 
-            // Configuração de relacionamento com a entidade Tag
+            // ValorBruto (pode armazenar strings como "123.45", "erro", etc)
+            builder.Property(l => l.ValorBruto)
+                   .HasMaxLength(100);
+
+            // Erro (mensagem opcional de falha)
+            builder.Property(l => l.Erro)
+                   .HasMaxLength(500);
+
+            // Relacionamento com Tag
             builder.HasOne(l => l.Tag)
                    .WithMany(t => t.Leituras)
                    .HasForeignKey(l => l.TagId)

@@ -16,11 +16,11 @@ namespace APsiControleApi.Application.Services
         ITagRepository _tagRepository;
         IMapper _mapper;
 
-        public TagService(IGenericRepository<Tag> repository, IMapper mapper, IUserContextService userContextService , ITagRepository tagRepository)
+        public TagService(IGenericRepository<Tag> repository, IMapper mapper, IUserContextService userContextService, ITagRepository tagRepository)
             : base(repository, mapper, userContextService)
         {
             _tagRepository = tagRepository;
-            _mapper= mapper;
+            _mapper = mapper;
         }
 
         /// <summary>
@@ -66,7 +66,7 @@ namespace APsiControleApi.Application.Services
             return tagMap;
         }
 
-         /// <summary>
+        /// <summary>
         /// Retorna tags paginadas que possuem leituras associadas.
         /// </summary>
         /// <param name="pageIndex">Índice da página</param>
@@ -79,6 +79,18 @@ namespace APsiControleApi.Application.Services
 
             return (tagsDto, totalItems);
         }
+
+        public async Task<Guid?> GetOpcServerIdByTagIdAsync(Guid tagId)
+        {
+            return await _tagRepository.GetOpcServerIdByTagIdAsync(tagId);
+        }
+        
+        public async Task<IEnumerable<TagDTO>> GetTagsByServerAsync(Guid serverId, string origem)
+        {
+            var tags = await _tagRepository.GetTagsByServerAsync(serverId, origem);
+            return _mapper.Map<IEnumerable<TagDTO>>(tags);
+        }
+
 
     }
 }

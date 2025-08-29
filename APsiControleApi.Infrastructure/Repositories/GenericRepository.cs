@@ -56,9 +56,8 @@ namespace APsiControleApi.Infrastructure.Repositories
 
         public async Task UpdateAsync(TEntity entity)
         {
-            _context.Entry(entity).State = EntityState.Modified;
-            AttachRelatedEntities(entity);
-            await _context.SaveChangesAsync();
+            _context.Set<TEntity>().Update(entity); // mais seguro para chaves estrangeiras
+            await _context.SaveChangesAsync(); 
         }
 
         public async Task DeleteAsync(Guid id)

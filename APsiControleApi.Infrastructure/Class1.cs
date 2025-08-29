@@ -1,4 +1,4 @@
-﻿namespace APsiControleApi.Infrastructure;
+namespace APsiControleApi.Infrastructure;
 
 public class Class1
 {

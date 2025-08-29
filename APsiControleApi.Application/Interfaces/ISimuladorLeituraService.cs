@@ -8,7 +8,7 @@ namespace APsiControleApi.Application.Interfaces
             Guid? tagKp = null,
             Guid? tagKi = null,
             Guid? tagKd = null,
-            List<Guid> outrasTags = null,
+            List<Guid>? outrasTags = null,
             Guid unidadeId = default,
             double? valorInicial = null);
 
@@ -18,7 +18,6 @@ namespace APsiControleApi.Application.Interfaces
             Guid? tagKi = null,
             Guid? tagKd = null,
             Guid unidadeId = default);
-
 
         Task IniciarSimulacaoPIDSinteseDiretaAsync(
             double k, double tau, double theta, double taud,

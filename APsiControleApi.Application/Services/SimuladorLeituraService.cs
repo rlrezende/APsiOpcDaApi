@@ -65,7 +65,7 @@ namespace APsiControleApi.Application.Services
             Guid? tagKp = null,
             Guid? tagKi = null,
             Guid? tagKd = null,
-            List<Guid> outrasTags = null,
+            List<Guid>? outrasTags = null,
             Guid unidadeId = default,
             double? valorInicial = null)
         {

@@ -1,4 +1,4 @@
-﻿namespace APsiControleApi.Application;
+namespace APsiControleApi.Application;
 
 public class Class1
 {

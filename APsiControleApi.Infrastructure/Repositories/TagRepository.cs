@@ -29,6 +29,25 @@ namespace APsiControleApi.Infrastructure.Repositories
             return (items, totalItems);
         }
 
+        public async Task<Guid?> GetOpcServerIdByTagIdAsync(Guid tagId)
+        {
+            return await _context.Tag
+                .Where(t => t.Id == tagId)
+                .Include(t => t.Node)
+                .Select(t => t.Node.ServerId)
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<IEnumerable<Tag>> GetTagsByServerAsync(Guid serverId, string origem)
+        {
+            return await _context.Tag
+                .AsNoTracking()
+                .Where(tag => tag.Origem == origem && tag.Node.ServerId == serverId && tag.Monitora)
+                .Include(tag => tag.Group)
+                .ToListAsync();
+        }
+
+
 
         // Métodos específicos para Tag podem ser implementados aqui
     }

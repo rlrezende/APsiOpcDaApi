@@ -8,14 +8,15 @@ using APsiControleApi.Infrastructure;
 using APsiControleApi.Infrastructure.Repositories;
 using APsiControleApi.Infrastructure.ExternalServices;
 using Microsoft.EntityFrameworkCore;
-using Polly;  // Necessário para as políticas de resiliência
-using Polly.Extensions.Http; 
+using Polly;
+using Polly.Extensions.Http;
 using AutoMapper;
 using APsiControleApi.Application.Mappings;
 using FluentValidation;
 using APsiControleApi.Application.Validators;
 using Microsoft.AspNetCore.Authorization;
 using APsiControleApi.API.Services;
+using APsiControleApi.Application.Infrastructure.HostedServices;
 
 namespace APsiControleApi.API.Extensions
 {
@@ -85,6 +86,11 @@ namespace APsiControleApi.API.Extensions
             services.AddScoped<ITagRepository, TagRepository>();
             services.AddScoped<ILeituraRepository, LeituraRepository>();
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+            services.AddScoped<IOpcServerRepository, OpcServerRepository>();
+            services.AddScoped<IOpcNodeRepository, OpcNodeRepository>();
+            services.AddScoped<IOpcGroupRepository, OpcGroupRepository>();
+            services.AddScoped<IOpcDiscoveredServerRepository, OpcDiscoveredServerRepository>();
+            services.AddScoped<IDatabaseMetadataRepository, DatabaseMetadataRepository>();
         }
 
         private static void RegisterExternalServices(IServiceCollection services)
@@ -94,7 +100,7 @@ namespace APsiControleApi.API.Extensions
             {
                 client.BaseAddress = new Uri("https://unidade-service-url");  // Substitua pela URL real do serviço Unidade
             })
-            .AddTransientHttpErrorPolicy(policy => policy.RetryAsync(3));  // Retry 3 vezes em caso de falha
+            .AddPolicyHandler(GetRetryPolicy());  // Retry 3 vezes em caso de falha
 
             // Adicione outros serviços externos aqui
         }
@@ -109,12 +115,23 @@ namespace APsiControleApi.API.Extensions
             services.AddScoped<IUserContextService, UserContextService>();
             services.AddScoped<ISimuladorLeituraService, SimuladorLeituraService>();
             services.AddScoped<INotificadorSimulacao, SignalRNotificadorSimulacao>();
+        //    services.AddHostedService<OpcMonitorBackgroundService>();
+            services.AddHostedService<DatabaseMonitorBackgroundService>();
+            services.AddScoped<IOpcMonitoringService, OpcMonitoringService>();
+            services.AddScoped<IOpcServerService, OpcServerService>();
+            services.AddScoped<IOpcNodeService, OpcNodeService>();
+            services.AddScoped<IOpcBrowserService, OpcBrowserService>();
+            services.AddScoped<IOpcGroupService, OpcGroupService>();
+            services.AddScoped<IOpcDiscoveryService, OpcDiscoveryService>();
+            services.AddScoped<IDatabaseBrowserService, DatabaseBrowserService>();
+             services.AddScoped<IDatabaseMonitoringService, DatabaseMonitoringService>();
+            
         }
 
         private static void ConfigureAuthentication(IServiceCollection services, IConfiguration configuration)
         {
             // Chave secreta usada para gerar o token JWT
-            var key = Encoding.ASCII.GetBytes(configuration["Jwt:Secret"]);
+            var key = Encoding.ASCII.GetBytes(configuration["Jwt:Secret"] ?? "default-secret-key");
 
             services.AddAuthentication(options =>
             {
@@ -154,5 +171,13 @@ namespace APsiControleApi.API.Extensions
             });
         }
 
+        private static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
+        {
+            return HttpPolicyExtensions
+                .HandleTransientHttpError()
+                .WaitAndRetryAsync(
+                    retryCount: 3,
+                    sleepDurationProvider: retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+        }
     }
 }
