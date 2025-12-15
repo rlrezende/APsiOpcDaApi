@@ -128,7 +128,12 @@ namespace APsiControleApi.Application.Services
             };
 
             // true = também busca propriedades (descrição, tipo, etc.)
-            var query = new OpcDaPropertiesQuery(true);
+            var query = new OpcDaPropertiesQuery(false, new[]
+            {
+                OpcDaItemPropertyIds.OPC_PROP_DESC,
+                OpcDaItemPropertyIds.OPC_PROP_CDT,
+                OpcDaItemPropertyIds.OPC_PROP_RIGHTS
+            });
 
             var nodes = new List<OpcNodeBrowseDTO>();
             var tags = new List<OpcTagDTO>();
@@ -160,6 +165,7 @@ namespace APsiControleApi.Application.Services
 
             try
             {
+                _logger.LogDebug("Browsing OPC DA branch. ItemId={ItemId}", parentItemId ?? "<root>");
                 elements = browser.GetElements(parentItemId, filter, query) ?? Array.Empty<OpcDaBrowseElement>();
             }
             catch (Exception ex)
