@@ -163,14 +163,16 @@ namespace APsiControleApi.Application.Services
         {
             OpcDaBrowseElement[] elements;
 
+            var browseId = parentItemId ?? string.Empty;
+
             try
             {
-                _logger.LogDebug("Browsing OPC DA branch. ItemId={ItemId}", parentItemId ?? "<root>");
-                elements = browser.GetElements(parentItemId, filter, query) ?? Array.Empty<OpcDaBrowseElement>();
+                _logger.LogDebug("Browsing OPC DA branch. ItemId={ItemId}", string.IsNullOrEmpty(browseId) ? "<root>" : browseId);
+                elements = browser.GetElements(browseId, filter, query) ?? Array.Empty<OpcDaBrowseElement>();
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Falha ao navegar em '{ItemId}'.", parentItemId ?? "<root>");
+                _logger.LogWarning(ex, "Falha ao navegar em '{ItemId}'.", string.IsNullOrEmpty(browseId) ? "<root>" : browseId);
                 return;
             }
 
