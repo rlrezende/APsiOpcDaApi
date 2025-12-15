@@ -1,10 +1,32 @@
+using System;
 using APsiControleApi.API.Extensions;
+using APsiControleApi.API.Logging;
 using FluentValidation.AspNetCore;
+using System.IO;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Logging;
 using APsiControleApi.API.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var shouldLogToFile = string.Equals(Environment.GetEnvironmentVariable("LOG_TO_FILE"), "true", StringComparison.OrdinalIgnoreCase)
+    || builder.Configuration.GetValue<bool?>("Logging:FileLoggingEnabled") == true;
+
+if (shouldLogToFile)
+{
+    var logDir = Path.Combine(builder.Environment.ContentRootPath, "resources", "log");
+    Directory.CreateDirectory(logDir);
+
+    var sanitizedAppName = builder.Environment.ApplicationName?
+        .Replace('.', '-')
+        .Replace(' ', '-')
+        .ToLowerInvariant()
+        ?? "api";
+
+    var logPath = Path.Combine(logDir, $"{sanitizedAppName}.log");
+    builder.Logging.AddProvider(new FileLoggerProvider(logPath));
+}
 
 // Configuração do Kestrel
 builder.WebHost.ConfigureKestrel(serverOptions =>
@@ -34,7 +56,9 @@ builder.Services.AddCors(options =>
     options.AddPolicy("CorsComAutenticacao", builder =>
     {
         builder
-            .WithOrigins("http://localhost:3000") // ✅ endereço exato do seu frontend
+            .WithOrigins(
+                "http://localhost:3000",
+                "http://localhost:3020") // ✅ endereços permitidos do frontend
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials(); // ✅ necessário para usar token com SignalR
@@ -70,19 +94,19 @@ app.Use(async (context, next) =>
     await next.Invoke();
 });
 
+app.UseRouting();
+
+app.UseCors("CorsComAutenticacao"); // 👈 deve estar entre routing e autenticação
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-app.UseCors("CorsComAutenticacao"); // 👈 deve estar antes de routing/autenticação
-
-
-app.UseHttpsRedirection();
-
-app.UseRouting();
-
+else
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthentication();           // ✅ ESSENCIAL para JWT + SignalR
 app.UseAuthorization();

@@ -1,5 +1,6 @@
 using APsiControleApi.Application.DTOs;
 using APsiControleApi.Application.Interfaces;
+using APsiControleApi.Domain.Enum;
 using Opc.Ua;
 using Opc.Ua.Client;
 using Opc.Ua.Configuration;
@@ -14,17 +15,27 @@ namespace APsiControleApi.Application.Services
     public class OpcBrowserService : IOpcBrowserService
     {
         private readonly IOpcServerService _opcServerService;
+        private readonly IOpcDaClientService _opcDaClientService;
 
-        public OpcBrowserService(IOpcServerService opcServerService)
+        public OpcBrowserService(IOpcServerService opcServerService, IOpcDaClientService opcDaClientService)
         {
             _opcServerService = opcServerService;
+            _opcDaClientService = opcDaClientService;
         }
 
 
         public async Task<OpcBrowseResultDTO> BrowseNodesAsync(Guid serverId, string? parentNodeId = null)
         {
             var server = await _opcServerService.GetByIdAsync(serverId);
-            if (server == null || string.IsNullOrWhiteSpace(server.Endpoint))
+            if (server == null)
+                throw new InvalidOperationException("OPC Server não encontrado.");
+
+            if (server.Tipo == TipoOpcServer.Da)
+            {
+                return await _opcDaClientService.BrowseAsync(server, parentNodeId);
+            }
+
+            if (string.IsNullOrWhiteSpace(server.Endpoint))
                 throw new InvalidOperationException("OPC Server não encontrado ou endpoint não configurado.");
 
             var endpointUrl = server.Endpoint;

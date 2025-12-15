@@ -23,5 +23,7 @@ namespace APsiControleApi.Application.Interfaces
          
          Task<IEnumerable<TagDTO>> GetTagsByServerAsync(Guid serverId, string origem);
 
+        Task<TagDTO?> GetByNodeIdOpcAsync(string nodeIdOpc);
+
     }
 }

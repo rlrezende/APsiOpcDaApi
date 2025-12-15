@@ -37,5 +37,13 @@ namespace APsiControleApi.Infrastructure.Repositories
                 .Include(g => g.Tags)
                 .FirstOrDefaultAsync(g => g.Id == groupId);
         }
+
+        public async Task<List<OpcGroup>> GetAllWithTagsAsync()
+        {
+            return await _dbSet
+                .AsNoTracking()
+                .Include(group => group.Tags)
+                .ToListAsync();
+        }
     }
 }

@@ -14,7 +14,7 @@ namespace APsiControleApi.Application.Services
         where TDto : class, IIdentifiable 
     {
         private readonly IGenericRepository<TEntity> _repository;
-        private readonly IMapper _mapper;
+        protected readonly IMapper _mapper;
         private readonly IUserContextService _userContextService;
 
         public GenericService(
@@ -27,19 +27,19 @@ namespace APsiControleApi.Application.Services
             _userContextService = userContextService;
         }
 
-        public async Task<TDto> GetByIdAsync(Guid id)
+        public virtual async Task<TDto> GetByIdAsync(Guid id)
         {
             var entity = await _repository.GetByIdAsync(id);
             return _mapper.Map<TDto>(entity);
         }
 
-        public async Task<IEnumerable<TDto>> GetAllAsync()
+        public virtual async Task<IEnumerable<TDto>> GetAllAsync()
         {
             var entities = await _repository.GetAllAsync();
             return _mapper.Map<IEnumerable<TDto>>(entities);
         }
 
-        public async Task<TDto> AddAsync(TDto dto)
+        public virtual async Task<TDto> AddAsync(TDto dto)
         {
             var entity = _mapper.Map<TEntity>(dto);
             SetCreatedDate(entity);
@@ -62,7 +62,7 @@ namespace APsiControleApi.Application.Services
             await _repository.AddRangeAsync(entities);
         }
 
-        public async Task UpdateAsync(TDto dto)
+        public virtual async Task UpdateAsync(TDto dto)
         {
             var existingEntity = await _repository.GetByIdAsync(dto.Id);
             if (existingEntity == null)
@@ -77,12 +77,12 @@ namespace APsiControleApi.Application.Services
             await _repository.UpdateAsync(existingEntity);
         }
 
-        public async Task DeleteAsync(Guid id)
+        public virtual async Task DeleteAsync(Guid id)
         {
             await _repository.DeleteAsync(id);
         }
 
-        public async Task<(IEnumerable<TDto> items, int totalItems)> GetPagedAsync(int pageIndex, int pageSize)
+        public virtual async Task<(IEnumerable<TDto> items, int totalItems)> GetPagedAsync(int pageIndex, int pageSize)
         {
             var (entities, totalItems) = await _repository.GetPagedAsync(pageIndex, pageSize);
             var dtos = _mapper.Map<IEnumerable<TDto>>(entities);

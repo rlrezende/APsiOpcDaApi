@@ -6,6 +6,8 @@ using Opc.Ua;
 using Opc.Ua.Client;
 using Opc.Ua.Configuration;
 using System.Collections.Concurrent;
+using APsiControleApi.Domain.Enum;
+using System.Globalization;
 
 namespace APsiControleApi.Application.Services
 {
@@ -18,11 +20,15 @@ namespace APsiControleApi.Application.Services
         private readonly ILogger<OpcMonitoringService> _logger;
         private readonly IOpcNodeService _nodeService;
         private readonly ITagService _tagService;
+        private readonly IOpcDaClientService _opcDaClientService;
 
         // Gerenciamento de sessões e subscriptions
         private readonly ConcurrentDictionary<Guid, Session> _activeSessions = new();
         private readonly ConcurrentDictionary<Guid, Subscription> _activeSubscriptions = new();
         private readonly ConcurrentDictionary<Guid, List<MonitoredItem>> _monitoredItems = new();
+        private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _daGroupCancellation = new();
+        private readonly ConcurrentDictionary<Guid, Task> _daPollingTasks = new();
+        private readonly ConcurrentDictionary<Guid, HashSet<string>> _daGroupItems = new();
 
         private readonly IServiceScopeFactory _scopeFactory;
 
@@ -43,6 +49,7 @@ namespace APsiControleApi.Application.Services
             INotificadorSimulacao notificador,
             IOpcNodeService nodeService,
             ITagService tagService,
+            IOpcDaClientService opcDaClientService,
             ILogger<OpcMonitoringService> logger,
             IServiceScopeFactory scopeFactory)
         {
@@ -52,6 +59,7 @@ namespace APsiControleApi.Application.Services
             _notificador = notificador;
             _nodeService = nodeService;
             _tagService = tagService;
+            _opcDaClientService = opcDaClientService;
             _logger = logger;
             _scopeFactory = scopeFactory;
         }
@@ -76,6 +84,7 @@ namespace APsiControleApi.Application.Services
                     }
 
                     _monitoredItems.TryRemove(groupId, out _); // Limpa também os monitored items
+                    StopOpcDaGroup(groupId);
                 }
             }
 
@@ -226,9 +235,21 @@ namespace APsiControleApi.Application.Services
             try
             {
                 var server = await _opcServerService.GetByIdAsync(group.ServerId);
-                if (server == null || string.IsNullOrWhiteSpace(server.Endpoint))
+                if (server == null)
                 {
-                    _logger.LogWarning($"Servidor OPC para grupo {group.Name} não encontrado ou sem endpoint");
+                    _logger.LogWarning($"Servidor OPC para grupo {group.Name} não encontrado");
+                    return;
+                }
+
+                if (server.Tipo == TipoOpcServer.Da)
+                {
+                    await EnsureOpcDaMonitoringAsync(server, group, cancellationToken);
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(server.Endpoint))
+                {
+                    _logger.LogWarning($"Servidor OPC para grupo {group.Name} sem endpoint configurado");
                     return;
                 }
 
@@ -533,6 +554,180 @@ namespace APsiControleApi.Application.Services
             });
         }
 
+        private async Task EnsureOpcDaMonitoringAsync(OpcServerDTO server, OpcGroupDTO group, CancellationToken cancellationToken)
+        {
+            if (!_opcDaClientService.IsSupported)
+            {
+                _logger.LogWarning("Servidor OPC DA '{Server}' ignorado: ambiente não Windows.", server.Nome);
+                StopOpcDaGroup(group.Id);
+                return;
+            }
+
+            if (!group.IsActive)
+            {
+                StopOpcDaGroup(group.Id);
+                return;
+            }
+
+            var tags = await _groupService.GetGroupTagsAsync(group.Id);
+            var itemIds = tags
+                .Where(t => t.Monitora && !string.IsNullOrWhiteSpace(t.NodeIdOpc))
+                .Select(t => t.NodeIdOpc!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (itemIds.Count == 0)
+            {
+                StopOpcDaGroup(group.Id);
+                return;
+            }
+
+            var newSet = new HashSet<string>(itemIds, StringComparer.OrdinalIgnoreCase);
+            if (_daGroupItems.TryGetValue(group.Id, out var currentSet))
+            {
+                if (!currentSet.SetEquals(newSet))
+                {
+                    StopOpcDaGroup(group.Id);
+                    _daGroupItems[group.Id] = newSet;
+                }
+                else
+                {
+                    var existingTask = _daPollingTasks.GetValueOrDefault(group.Id);
+                    if (existingTask != null && !existingTask.IsCompleted && !existingTask.IsCanceled)
+                    {
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                _daGroupItems[group.Id] = newSet;
+            }
+
+            var cts = _daGroupCancellation.GetOrAdd(group.Id, _ => CancellationTokenSource.CreateLinkedTokenSource(cancellationToken));
+            if (cts.IsCancellationRequested)
+            {
+                cts.Dispose();
+                cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                _daGroupCancellation[group.Id] = cts;
+            }
+
+            var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
+            var pollingTask = Task.Run(() => PollOpcDaGroupAsync(server, group, itemIds, linkedSource.Token), linkedSource.Token);
+            _daPollingTasks[group.Id] = pollingTask;
+        }
+
+        private async Task PollOpcDaGroupAsync(OpcServerDTO server, OpcGroupDTO group, IReadOnlyList<string> itemIds, CancellationToken token)
+        {
+            _logger.LogInformation("Iniciando polling OPC DA para grupo '{Group}'", group.Name);
+
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    var values = await _opcDaClientService.ReadValuesAsync(server, itemIds);
+                    foreach (var value in values)
+                    {
+                        await ProcessOpcDaValueAsync(value);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Erro ao ler valores OPC DA para grupo '{Group}'", group.Name);
+                }
+
+                try
+                {
+                    var delay = TimeSpan.FromMilliseconds(Math.Max(200, group.UpdateRate));
+                    await Task.Delay(delay, token);
+                }
+                catch (TaskCanceledException)
+                {
+                    break;
+                }
+            }
+
+            _logger.LogInformation("Encerrando polling OPC DA para grupo '{Group}'", group.Name);
+        }
+
+        private async Task ProcessOpcDaValueAsync(OpcTagDTO opcValue)
+        {
+            if (string.IsNullOrWhiteSpace(opcValue.NodeId) || string.IsNullOrWhiteSpace(opcValue.ValorAtual))
+            {
+                return;
+            }
+
+            if (!double.TryParse(opcValue.ValorAtual, NumberStyles.Any, CultureInfo.InvariantCulture, out var numericValue))
+            {
+                return;
+            }
+
+            using var scope = _scopeFactory.CreateScope();
+            var tagService = scope.ServiceProvider.GetRequiredService<ITagService>();
+            var leituraService = scope.ServiceProvider.GetRequiredService<ILeituraService>();
+            var notificador = scope.ServiceProvider.GetRequiredService<INotificadorSimulacao>();
+
+            try
+            {
+                var tag = await tagService.GetByNodeIdOpcAsync(opcValue.NodeId);
+                if (tag == null || !tag.Monitora)
+                {
+                    return;
+                }
+
+                tag.ValorAtual = numericValue;
+                await tagService.UpdateAsync(tag);
+
+                var timestamp = opcValue.Timestamp ?? DateTime.UtcNow;
+
+                await leituraService.AddAsync(new LeituraDTO
+                {
+                    TagId = tag.Id,
+                    Valor = numericValue,
+                    DataLeitura = timestamp
+                });
+
+                await notificador.NotificarAtualizacaoTagAsync(tag.Id, numericValue, timestamp);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao processar leitura OPC DA para item '{ItemId}'", opcValue.NodeId);
+            }
+        }
+
+        private void StopOpcDaGroup(Guid groupId)
+        {
+            if (_daGroupCancellation.TryRemove(groupId, out var cts))
+            {
+                try
+                {
+                    cts.Cancel();
+                }
+                catch
+                {
+                    // ignorar
+                }
+                finally
+                {
+                    cts.Dispose();
+                }
+            }
+
+            if (_daPollingTasks.TryRemove(groupId, out var task))
+            {
+                try
+                {
+                    task.Wait(TimeSpan.FromSeconds(1));
+                }
+                catch
+                {
+                    // ignorar
+                }
+            }
+
+            _daGroupItems.TryRemove(groupId, out _);
+        }
+
 
         private void OnSessionKeepAlive(ISession session, KeepAliveEventArgs e)
         {
@@ -593,6 +788,37 @@ namespace APsiControleApi.Application.Services
             }
             _activeSubscriptions.Clear();
             _monitoredItems.Clear();
+
+            foreach (var cts in _daGroupCancellation.Values)
+            {
+                try
+                {
+                    cts.Cancel();
+                }
+                catch
+                {
+                    // ignorar
+                }
+                finally
+                {
+                    cts.Dispose();
+                }
+            }
+            _daGroupCancellation.Clear();
+
+            foreach (var task in _daPollingTasks.Values)
+            {
+                try
+                {
+                    await task;
+                }
+                catch
+                {
+                    // ignorar
+                }
+            }
+            _daPollingTasks.Clear();
+            _daGroupItems.Clear();
 
             // Fechar todas as sessões
             foreach (var session in _activeSessions.Values)

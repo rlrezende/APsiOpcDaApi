@@ -49,7 +49,7 @@ namespace APsiControleApi.Infrastructure.Configurations
                      .HasDefaultValue(false);
 
               builder.HasOne(g => g.Server)
-                     .WithMany()
+                     .WithMany(s => s.Groups)
                      .HasForeignKey(g => g.ServerId)
                      .OnDelete(DeleteBehavior.Cascade);
 

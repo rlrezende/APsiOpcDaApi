@@ -8,6 +8,8 @@ namespace APsiControleApi.Domain.Interfaces.Repositories
         Task<Guid?> GetOpcServerIdByTagIdAsync(Guid tagId);
 
         Task<IEnumerable<Tag>> GetTagsByServerAsync(Guid serverId, string origem);
-
+        Task<IEnumerable<Tag>> SearchTagsAsync(string? searchTerm, string? instrumentClass, Guid? groupId, int? limit = null);
+        Task<List<Tag>> GetByIdsAsync(IEnumerable<Guid> ids);
+        Task<Tag?> GetByNodeIdOpcAsync(string nodeIdOpc);
     }
 }

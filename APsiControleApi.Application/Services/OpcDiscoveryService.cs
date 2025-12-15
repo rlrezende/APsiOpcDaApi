@@ -1,6 +1,7 @@
 using APsiControleApi.Application.DTOs;
 using APsiControleApi.Application.Interfaces;
 using APsiControleApi.Domain.Entities;
+using APsiControleApi.Domain.Enum;
 using APsiControleApi.Domain.Interfaces.Repositories;
 using AutoMapper;
 using Opc.Ua;
@@ -268,8 +269,11 @@ namespace APsiControleApi.Application.Services
                     {
                         Nome = discoveredServer.Name,
                         Endpoint = discoveredServer.Endpoint,
-                        UnidadeId = await GetDefaultUnidadeIdAsync()
+                        UnidadeId = await GetDefaultUnidadeIdAsync(),
+                        Tipo = TipoOpcServer.Ua,
+                        Descricao = discoveredServer.ApplicationUri
                     };
+
                     var createdOpcServer = await _opcServerService.AddAsync(opcServerDto);
                     return createdOpcServer.Id; // Retornar o ID do OpcServer criado
                 }

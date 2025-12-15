@@ -3,6 +3,7 @@ using System;
 using APsiControleApi.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace APsiControleApi.Infrastructure.Migrations
 {
     [DbContext(typeof(APsiControleApiContext))]
-    partial class APsiControleApiContextModelSnapshot : ModelSnapshot
+    [Migration("20250924010224_AddDetectModels")]
+    partial class AddDetectModels
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -433,13 +436,6 @@ namespace APsiControleApi.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("ClsId")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<string>("ConnectionStatus")
-                        .HasColumnType("text");
-
                     b.Property<string>("ConnectionString")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
@@ -447,67 +443,19 @@ namespace APsiControleApi.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Descricao")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTime?>("DiscoveryTime")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("Endpoint")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Host")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<bool>("IsConnected")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<bool>("IsOnline")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<DateTime?>("LastConnection")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Nome")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<string>("Password")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<string>("ProgId")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
                     b.Property<string>("Provider")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<int>("ResponseTime")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
-                    b.Property<string>("SecurityMode")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
-
-                    b.Property<string>("SecurityPolicy")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
 
                     b.Property<int>("Tipo")
                         .HasColumnType("integer");
@@ -517,10 +465,6 @@ namespace APsiControleApi.Infrastructure.Migrations
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Username")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.HasKey("Id");
 
@@ -652,7 +596,7 @@ namespace APsiControleApi.Infrastructure.Migrations
             modelBuilder.Entity("APsiControleApi.Domain.Entities.OpcGroup", b =>
                 {
                     b.HasOne("APsiControleApi.Domain.Entities.OpcServer", "Server")
-                        .WithMany("Groups")
+                        .WithMany()
                         .HasForeignKey("ServerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -708,8 +652,6 @@ namespace APsiControleApi.Infrastructure.Migrations
 
             modelBuilder.Entity("APsiControleApi.Domain.Entities.OpcServer", b =>
                 {
-                    b.Navigation("Groups");
-
                     b.Navigation("Nodes");
                 });
 

@@ -17,6 +17,12 @@ namespace APsiControleApi.Infrastructure
         public DbSet<OpcNode> OpcNodes { get; set; }
         public DbSet<OpcGroup> OpcGroups { get; set; }
         public DbSet<OpcDiscoveredServer> OpcDiscoveredServers { get; set; }
+
+        public DbSet<DetectModel> DetectModels { get; set; }
+        public DbSet<DetectModelTag> DetectModelTags { get; set; }
+        public DbSet<DetectModelPipeline> DetectModelPipelines { get; set; }
+        public DbSet<DetectTrainingJob> DetectTrainingJobs { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             // Definir o schema padrão
@@ -32,6 +38,10 @@ namespace APsiControleApi.Infrastructure
             modelBuilder.ApplyConfiguration(new OpcServerConfiguration());
             modelBuilder.ApplyConfiguration(new OpcGroupConfiguration());
             modelBuilder.ApplyConfiguration(new OpcDiscoveredServerConfiguration());
+            modelBuilder.ApplyConfiguration(new DetectModelConfiguration());
+            modelBuilder.ApplyConfiguration(new DetectModelTagConfiguration());
+            modelBuilder.ApplyConfiguration(new DetectModelPipelineConfiguration());
+            modelBuilder.ApplyConfiguration(new DetectTrainingJobConfiguration());
 
             // Aplicar Seeders
             ModuloSeeder.Seed(modelBuilder);

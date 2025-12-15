@@ -8,5 +8,6 @@ namespace APsiControleApi.Application.Interfaces
     {
         Task<OpcServerDTO?> GetByEndpointAsync(string endpoint);
         Task<IEnumerable<OpcServerDTO>> GetServersByTypeAsync(TipoOpcServer tipo);
+        bool IsOpcDaSupported();
     }
 }

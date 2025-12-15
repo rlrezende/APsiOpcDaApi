@@ -7,5 +7,6 @@ namespace APsiControleApi.Domain.Interfaces.Repositories
         Task<List<OpcGroup>> GetGroupsByServerIdAsync(Guid serverId);
         Task<List<OpcGroup>> GetActiveGroupsAsync();
         Task<OpcGroup> GetGroupWithTagsAsync(Guid groupId);
+        Task<List<OpcGroup>> GetAllWithTagsAsync();
     }
 }

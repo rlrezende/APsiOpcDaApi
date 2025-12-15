@@ -91,6 +91,8 @@ namespace APsiControleApi.API.Extensions
             services.AddScoped<IOpcGroupRepository, OpcGroupRepository>();
             services.AddScoped<IOpcDiscoveredServerRepository, OpcDiscoveredServerRepository>();
             services.AddScoped<IDatabaseMetadataRepository, DatabaseMetadataRepository>();
+            services.AddScoped<IDetectModelRepository, DetectModelRepository>();
+            services.AddScoped<IDetectTrainingJobRepository, DetectTrainingJobRepository>();
         }
 
         private static void RegisterExternalServices(IServiceCollection services)
@@ -120,11 +122,13 @@ namespace APsiControleApi.API.Extensions
             services.AddScoped<IOpcMonitoringService, OpcMonitoringService>();
             services.AddScoped<IOpcServerService, OpcServerService>();
             services.AddScoped<IOpcNodeService, OpcNodeService>();
+            services.AddScoped<IOpcDaClientService, OpcDaClientService>();
             services.AddScoped<IOpcBrowserService, OpcBrowserService>();
             services.AddScoped<IOpcGroupService, OpcGroupService>();
             services.AddScoped<IOpcDiscoveryService, OpcDiscoveryService>();
             services.AddScoped<IDatabaseBrowserService, DatabaseBrowserService>();
-             services.AddScoped<IDatabaseMonitoringService, DatabaseMonitoringService>();
+            services.AddScoped<IDatabaseMonitoringService, DatabaseMonitoringService>();
+            services.AddScoped<IDetectService, DetectService>();
             
         }
 

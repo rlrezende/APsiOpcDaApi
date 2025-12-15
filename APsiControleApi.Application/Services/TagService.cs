@@ -91,6 +91,17 @@ namespace APsiControleApi.Application.Services
             return _mapper.Map<IEnumerable<TagDTO>>(tags);
         }
 
+        public async Task<TagDTO?> GetByNodeIdOpcAsync(string nodeIdOpc)
+        {
+            if (string.IsNullOrWhiteSpace(nodeIdOpc))
+            {
+                return null;
+            }
+
+            var tag = await _tagRepository.GetByNodeIdOpcAsync(nodeIdOpc);
+            return tag != null ? _mapper.Map<TagDTO>(tag) : null;
+        }
+
 
     }
 }
