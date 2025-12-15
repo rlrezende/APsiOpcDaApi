@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using APsiControleApi.Application.DTOs;
 using APsiControleApi.Application.Interfaces;
@@ -48,7 +50,7 @@ namespace APsiControleApi.Application.Services
         {
             EnsureCanUseDa(server);
 
-            return await Task.Run(() => BrowseInternal(server, itemId));
+            return await Task.Run(() => RunOnSta(() => BrowseInternal(server, itemId)));
         }
 
         /// <summary>
@@ -69,7 +71,7 @@ namespace APsiControleApi.Application.Services
                 return Array.Empty<OpcTagDTO>();
             }
 
-            return await Task.Run(() =>
+            return await Task.Run(() => RunOnSta(() =>
             {
                 using var connection = Connect(server);
 
@@ -103,7 +105,7 @@ namespace APsiControleApi.Application.Services
                 }
 
                 return (IReadOnlyList<OpcTagDTO>)tags;
-            });
+            }));
         }
 
         /// <summary>
@@ -272,6 +274,40 @@ namespace APsiControleApi.Application.Services
             {
                 return default;
             }
+        }
+
+        /// <summary>
+        /// Executa uma função dentro de um thread STA, necessário para chamadas COM do OPC DA.
+        /// </summary>
+        private static T RunOnSta<T>(Func<T> func)
+        {
+            if (!OperatingSystem.IsWindows() || Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
+            {
+                return func();
+            }
+
+            T result = default!;
+            ExceptionDispatchInfo? capturedException = null;
+
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    result = func();
+                }
+                catch (Exception ex)
+                {
+                    capturedException = ExceptionDispatchInfo.Capture(ex);
+                }
+            });
+
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+
+            capturedException?.Throw();
+
+            return result;
         }
 
         /// <summary>
