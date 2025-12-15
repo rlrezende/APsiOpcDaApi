@@ -183,7 +183,7 @@ namespace APsiControleApi.API.Controllers
     public class SimulacaoRequest
     {
         public Guid UnidadeId { get; set; }
-        public List<Guid> TagIds { get; set; }
+        public List<Guid> TagIds { get; set; } = new();
     }
 
     public class SimulacaoPidRequest
@@ -195,7 +195,7 @@ namespace APsiControleApi.API.Controllers
         public Guid? TagKp { get; set; }
         public Guid? TagKi { get; set; }
         public Guid? TagKd { get; set; }
-        public List<Guid> OutrasTags { get; set; }
+        public List<Guid> OutrasTags { get; set; } = new();
         public double? ValorInicial { get; set; }
     }
 }

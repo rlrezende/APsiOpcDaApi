@@ -311,7 +311,7 @@ namespace APsiControleApi.Application.Services
 
             _logger.LogInformation("Conectando ao OPC DA. Host={Host}, ProgId={ProgId}", host, progId);
 
-            var opcServer = new OpcDaServer(host, progId);
+            var opcServer = new OpcDaServer(progId, host);
 
             try
             {
@@ -425,4 +425,3 @@ namespace APsiControleApi.Application.Services
         }
     }
 }
-

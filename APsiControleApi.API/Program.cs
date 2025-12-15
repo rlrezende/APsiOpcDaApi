@@ -7,7 +7,12 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 using APsiControleApi.API.Hubs;
+using TitaniumAS.Opc.Client;
 
+if (OperatingSystem.IsWindows())
+{
+    Bootstrap.Initialize(); // garante inicialização COM para o TitaniumAS.Opc.Client
+}
 var builder = WebApplication.CreateBuilder(args);
 
 var shouldLogToFile = string.Equals(Environment.GetEnvironmentVariable("LOG_TO_FILE"), "true", StringComparison.OrdinalIgnoreCase)
