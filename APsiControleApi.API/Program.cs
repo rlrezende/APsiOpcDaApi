@@ -7,11 +7,19 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 using APsiControleApi.API.Hubs;
+#if SOFTING_OPC
+using APsiControleApi.Application.Opc;
+#else
 using TitaniumAS.Opc.Client;
+#endif
 
 if (OperatingSystem.IsWindows())
 {
+#if SOFTING_OPC
+    SoftingOpcDaBootstrapper.Initialize();
+#else
     Bootstrap.Initialize(); // garante inicialização COM para o TitaniumAS.Opc.Client
+#endif
 }
 var builder = WebApplication.CreateBuilder(args);
 

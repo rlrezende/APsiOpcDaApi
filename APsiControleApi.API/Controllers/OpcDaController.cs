@@ -7,7 +7,12 @@ using APsiControleApi.Application.Interfaces;
 using APsiControleApi.Domain.Enum;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+#if SOFTING_OPC
+using Softing.OPCToolbox;
+using Softing.OPCToolbox.Client;
+#else
 using TitaniumAS.Opc.Client.Common;
+#endif
 
 namespace APsiControleApi.API.Controllers
 {
@@ -94,6 +99,77 @@ namespace APsiControleApi.API.Controllers
 
             try
             {
+#if SOFTING_OPC
+                var targetHost = string.IsNullOrWhiteSpace(host) ? "localhost" : host;
+
+                var existing = (await _opcServerService.GetServersByTypeAsync(TipoOpcServer.Da))
+                    .ToDictionary(
+                        s => $"{(s.Host ?? string.Empty).ToLowerInvariant()}|{(s.ProgId ?? s.Endpoint ?? string.Empty).ToLowerInvariant()}",
+                        s => s);
+
+                var browser = new ServerBrowser(targetHost);
+                var exec = new ExecutionOptions
+                {
+                    ExecutionType = EnumExecutionType.SYNCHRONOUS,
+                    ExecutionContext = (uint)browser.GetHashCode()
+                };
+
+                ServerBrowserData[]? serverData;
+                var browseResult = browser.Browse(
+                    EnumOPCSpecification.DA20,
+                    EnumServerBrowserData.SERVERBROWSERDATA_ALL,
+                    out serverData,
+                    exec);
+
+                if (!ResultCode.SUCCEEDED(browseResult))
+                {
+                    return StatusCode(500, new { message = "Erro ao descobrir servidores OPC DA (Softing).", error = $"0x{browseResult:X8}" });
+                }
+
+                var discovered = new List<OpcServerDTO>();
+
+                foreach (var desc in serverData ?? Array.Empty<ServerBrowserData>())
+                {
+                    var progId = desc.ProgId ?? desc.ProgIdVersionIndependent ?? desc.ClsId ?? desc.Url;
+                    if (string.IsNullOrWhiteSpace(progId))
+                    {
+                        continue;
+                    }
+
+                    var hostKey = targetHost.ToLowerInvariant();
+                    var key = $"{hostKey}|{progId.ToLowerInvariant()}";
+
+                    var dto = new OpcServerDTO
+                    {
+                        Nome = desc.Description ?? progId,
+                        Endpoint = desc.Url ?? progId,
+                        Host = targetHost,
+                        ProgId = desc.ProgId ?? progId,
+                        ClsId = desc.ClsId,
+                        Provider = desc.ProgIdVersionIndependent,
+                        Descricao = desc.Description,
+                        Tipo = TipoOpcServer.Da,
+                        UnidadeId = DefaultUnidadeId,
+                        DiscoveryTime = DateTime.UtcNow,
+                        IsOnline = true
+                    };
+
+                    discovered.Add(dto);
+
+                    if (!existing.ContainsKey(key))
+                    {
+                        var created = await _opcServerService.AddAsync(dto);
+                        existing[key] = created;
+                    }
+                }
+
+                return Ok(new
+                {
+                    servers = discovered,
+                    totalFound = discovered.Count,
+                    host = targetHost
+                });
+#else
                 var enumerator = new OpcServerEnumeratorAuto();
                 var targetHost = string.IsNullOrWhiteSpace(host) ? enumerator.Localhost : host;
 
@@ -142,6 +218,7 @@ namespace APsiControleApi.API.Controllers
                     totalFound = discovered.Count,
                     host = targetHost
                 });
+#endif
             }
             catch (Exception ex)
             {

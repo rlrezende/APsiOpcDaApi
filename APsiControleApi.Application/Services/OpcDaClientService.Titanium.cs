@@ -1,3 +1,4 @@
+#if !SOFTING_OPC
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -469,3 +470,4 @@ namespace APsiControleApi.Application.Services
         }
     }
 }
+#endif

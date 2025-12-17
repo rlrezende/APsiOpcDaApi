@@ -1,0 +1,33 @@
+<Project>
+  <PropertyGroup>
+    <SoftingOpcSdkDir Condition="'$(SoftingOpcSdkDir)'==''">$(SOFTING_OPC_SDK_DIR)</SoftingOpcSdkDir>
+    <SoftingOpcLibrary Condition="'$(SoftingOpcSdkDir)'!=''">$(SoftingOpcSdkDir)\bin\TBN461.dll</SoftingOpcLibrary>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(OS)'=='Windows_NT' and Exists('$(SoftingOpcLibrary)')">
+    <SoftingOpcEnabled>true</SoftingOpcEnabled>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(SoftingOpcEnabled)'=='true' and '$(MSBuildProjectName)'=='APsiControleApi.Application'">
+    <DefineConstants>$(DefineConstants);SOFTING_OPC</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(SoftingOpcEnabled)'=='true' and '$(MSBuildProjectName)'=='APsiControleApi.API'">
+    <DefineConstants>$(DefineConstants);SOFTING_OPC</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(SoftingOpcEnabled)'=='true' and ('$(MSBuildProjectName)'=='APsiControleApi.Application' or '$(MSBuildProjectName)'=='APsiControleApi.API')">
+    <Reference Include="Softing.OPCToolbox">
+      <HintPath>$(SoftingOpcLibrary)</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(SoftingOpcEnabled)'=='true' and '$(MSBuildProjectName)'=='APsiControleApi.API'">
+    <None Include="$(SoftingOpcSdkDir)\bin\OTBu.dll" Condition="Exists('$(SoftingOpcSdkDir)\bin\OTBu.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="$(SoftingOpcSdkDir)\bin\OTBux64.dll" Condition="Exists('$(SoftingOpcSdkDir)\bin\OTBux64.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>
