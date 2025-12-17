@@ -1,26 +1,32 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
- <ItemGroup>
-   <ProjectReference Include="..\APsiControleApi.Domain\APsiControleApi.Domain.csproj" />
- </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\APsiControleApi.Domain\APsiControleApi.Domain.csproj" />
+  </ItemGroup>
 
- <ItemGroup>
-   <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
-   <PackageReference Include="BrazilianUtils" Version="2.0.0" />
-   <PackageReference Include="EPPlus" Version="5.8.0" />
-   <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.0" />
-   <PackageReference Include="IdentityModel" Version="7.0.0" />
-   <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
-   <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-   <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua" Version="1.5.376.213" />
-   <PackageReference Include="TitaniumAS.Opc.Client" Version="1.0.2" />
- </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
+    <PackageReference Include="BrazilianUtils" Version="2.0.0" />
+    <PackageReference Include="EPPlus" Version="5.8.0" />
+    <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.0" />
+    <PackageReference Include="IdentityModel" Version="7.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua" Version="1.5.376.213" />
+  </ItemGroup>
 
- <PropertyGroup>
-   <TargetFramework>net9.0</TargetFramework>
-   <ImplicitUsings>enable</ImplicitUsings>
-   <Nullable>enable</Nullable>
-   <Prefer32Bit>true</Prefer32Bit>
- </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Softing.OPCToolbox">
+      <HintPath>E:\APsiC_systems\Projects\OPC-Classic-SDK-main\development\NET\src\bin\VS2019\AnyCPU\Debug\TBN461.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
 
 </Project>

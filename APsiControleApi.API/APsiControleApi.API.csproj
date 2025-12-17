@@ -31,4 +31,20 @@
    <ProjectReference Include="..\APsiControleApi.Infrastructure\APsiControleApi.Infrastructure.csproj" />
  </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="Softing.OPCToolbox">
+      <HintPath>E:\APsiC_systems\Projects\OPC-Classic-SDK-main\development\NET\src\bin\VS2019\AnyCPU\Debug\TBN461.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="E:\APsiC_systems\Projects\OPC-Classic-SDK-main\development\NET\src\bin\VS2019\AnyCPU\Debug\OTBu.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="E:\APsiC_systems\Projects\OPC-Classic-SDK-main\development\NET\src\bin\VS2019\AnyCPU\Debug\OTBux64.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
