@@ -7,12 +7,8 @@ using APsiControleApi.Application.Interfaces;
 using APsiControleApi.Domain.Enum;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-#if SOFTING_OPC
 using Softing.OPCToolbox;
 using Softing.OPCToolbox.Client;
-#else
-using TitaniumAS.Opc.Client.Common;
-#endif
 
 namespace APsiControleApi.API.Controllers
 {
@@ -99,7 +95,6 @@ namespace APsiControleApi.API.Controllers
 
             try
             {
-#if SOFTING_OPC
                 var targetHost = string.IsNullOrWhiteSpace(host) ? "localhost" : host;
 
                 var existing = (await _opcServerService.GetServersByTypeAsync(TipoOpcServer.Da))
@@ -169,56 +164,6 @@ namespace APsiControleApi.API.Controllers
                     totalFound = discovered.Count,
                     host = targetHost
                 });
-#else
-                var enumerator = new OpcServerEnumeratorAuto();
-                var targetHost = string.IsNullOrWhiteSpace(host) ? enumerator.Localhost : host;
-
-                var existing = (await _opcServerService.GetServersByTypeAsync(TipoOpcServer.Da))
-                    .ToDictionary(
-                        s => $"{(s.Host ?? string.Empty).ToLowerInvariant()}|{(s.ProgId ?? s.Endpoint ?? string.Empty).ToLowerInvariant()}",
-                        s => s);
-
-                var discovered = new List<OpcServerDTO>();
-                var descriptions = enumerator.Enumerate(targetHost, loadAllServerCategories: true, OpcServerCategory.OpcDaServers)
-                                     ?? Array.Empty<OpcServerDescription>();
-
-                foreach (var desc in descriptions)
-                {
-                    var progId = desc.ProgId ?? desc.VendorIndependentProgId ?? desc.UserType ?? desc.CLSID.ToString();
-                    var hostKey = (desc.Host ?? targetHost).ToLowerInvariant();
-                    var key = $"{hostKey}|{progId.ToLowerInvariant()}";
-
-                    var dto = new OpcServerDTO
-                    {
-                        Nome = desc.UserType ?? progId,
-                        Endpoint = progId,
-                        Host = desc.Host ?? targetHost,
-                        ProgId = progId,
-                        ClsId = desc.CLSID.ToString(),
-                        Provider = desc.VendorIndependentProgId,
-                        Descricao = desc.UserType,
-                        Tipo = TipoOpcServer.Da,
-                        UnidadeId = DefaultUnidadeId,
-                        DiscoveryTime = DateTime.UtcNow,
-                        IsOnline = true
-                    };
-
-                    discovered.Add(dto);
-
-                    if (!existing.ContainsKey(key))
-                    {
-                        var created = await _opcServerService.AddAsync(dto);
-                        existing[key] = created;
-                    }
-                }
-
-                return Ok(new
-                {
-                    servers = discovered,
-                    totalFound = discovered.Count,
-                    host = targetHost
-                });
-#endif
             }
             catch (Exception ex)
             {

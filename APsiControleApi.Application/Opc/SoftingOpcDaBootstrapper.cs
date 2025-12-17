@@ -1,4 +1,3 @@
-#if SOFTING_OPC
 using System;
 using Microsoft.Extensions.Logging;
 using Softing.OPCToolbox;
@@ -69,4 +68,3 @@ namespace APsiControleApi.Application.Opc
         }
     }
 }
-#endif
