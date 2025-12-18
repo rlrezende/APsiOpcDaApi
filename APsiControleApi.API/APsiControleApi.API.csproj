@@ -32,19 +32,14 @@
  </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="Softing.OPCToolbox">
-      <HintPath>E:\APsiC_systems\Projects\OPC-Classic-SDK-main\development\NET\src\bin\VS2019\AnyCPU\Debug\TBN461.dll</HintPath>
+    <Reference Include="OpcNetApi">
+      <HintPath>..\Libs\Opc\OpcNetApi.dll</HintPath>
       <Private>true</Private>
     </Reference>
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="E:\APsiC_systems\Projects\OPC-Classic-SDK-main\development\NET\src\bin\VS2019\AnyCPU\Debug\OTBu.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="E:\APsiC_systems\Projects\OPC-Classic-SDK-main\development\NET\src\bin\VS2019\AnyCPU\Debug\OTBux64.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <Reference Include="OpcNetApi.Com">
+      <HintPath>..\Libs\Opc\OpcNetApi.Com.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 
 </Project>

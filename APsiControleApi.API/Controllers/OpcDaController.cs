@@ -7,8 +7,9 @@ using APsiControleApi.Application.Interfaces;
 using APsiControleApi.Domain.Enum;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Softing.OPCToolbox;
-using Softing.OPCToolbox.Client;
+using Opc;
+using Opc.Da;
+using OpcCom;
 
 namespace APsiControleApi.API.Controllers
 {
@@ -95,54 +96,42 @@ namespace APsiControleApi.API.Controllers
 
             try
             {
-                var targetHost = string.IsNullOrWhiteSpace(host) ? "localhost" : host;
+                var targetHost = string.IsNullOrWhiteSpace(host) ? "localhost" : host.Trim();
 
                 var existing = (await _opcServerService.GetServersByTypeAsync(TipoOpcServer.Da))
                     .ToDictionary(
                         s => $"{(s.Host ?? string.Empty).ToLowerInvariant()}|{(s.ProgId ?? s.Endpoint ?? string.Empty).ToLowerInvariant()}",
                         s => s);
 
-                var browser = new ServerBrowser(targetHost);
-                var exec = new ExecutionOptions
-                {
-                    ExecutionType = EnumExecutionType.SYNCHRONOUS,
-                    ExecutionContext = (uint)browser.GetHashCode()
-                };
-
-                ServerBrowserData[]? serverData;
-                var browseResult = browser.Browse(
-                    EnumOPCSpecification.DA20,
-                    EnumServerBrowserData.SERVERBROWSERDATA_ALL,
-                    out serverData,
-                    exec);
-
-                if (!ResultCode.SUCCEEDED(browseResult))
-                {
-                    return StatusCode(500, new { message = "Erro ao descobrir servidores OPC DA (Softing).", error = $"0x{browseResult:X8}" });
-                }
+                using var enumerator = new ServerEnumerator();
+                var servers = enumerator.GetAvailableServers(Specification.COM_DA_20, targetHost, null)
+                    ?? Array.Empty<Opc.Server>();
 
                 var discovered = new List<OpcServerDTO>();
 
-                foreach (var desc in serverData ?? Array.Empty<ServerBrowserData>())
+                foreach (var opcServer in servers.OfType<Opc.Da.Server>())
                 {
-                    var progId = desc.ProgId ?? desc.ProgIdVersionIndependent ?? desc.ClsId ?? desc.Url;
-                    if (string.IsNullOrWhiteSpace(progId))
-                    {
-                        continue;
-                    }
+                    using var serverInstance = opcServer;
 
-                    var hostKey = targetHost.ToLowerInvariant();
-                    var key = $"{hostKey}|{progId.ToLowerInvariant()}";
+                    var url = serverInstance.Url;
+                    var endpoint = url != null
+                        ? $"{url.Scheme}://{url.HostName}/{url.Path}".TrimEnd('/')
+                        : string.Empty;
+
+                    var progId = ExtractProgId(url);
+                    var clsId = ExtractClsId(url);
+                    var keyHost = targetHost.ToLowerInvariant();
+                    var keyProgId = (progId ?? endpoint ?? string.Empty).ToLowerInvariant();
+                    var dictionaryKey = $"{keyHost}|{keyProgId}";
 
                     var dto = new OpcServerDTO
                     {
-                        Nome = desc.Description ?? progId,
-                        Endpoint = desc.Url ?? progId,
+                        Nome = serverInstance.Name ?? progId ?? "Servidor OPC DA",
+                        Endpoint = endpoint,
                         Host = targetHost,
-                        ProgId = desc.ProgId ?? progId,
-                        ClsId = desc.ClsId,
-                        Provider = desc.ProgIdVersionIndependent,
-                        Descricao = desc.Description,
+                        ProgId = progId ?? endpoint,
+                        ClsId = clsId,
+                        Descricao = serverInstance.Name,
                         Tipo = TipoOpcServer.Da,
                         UnidadeId = DefaultUnidadeId,
                         DiscoveryTime = DateTime.UtcNow,
@@ -151,10 +140,10 @@ namespace APsiControleApi.API.Controllers
 
                     discovered.Add(dto);
 
-                    if (!existing.ContainsKey(key))
+                    if (!existing.ContainsKey(dictionaryKey))
                     {
                         var created = await _opcServerService.AddAsync(dto);
-                        existing[key] = created;
+                        existing[dictionaryKey] = created;
                     }
                 }
 
@@ -176,6 +165,50 @@ namespace APsiControleApi.API.Controllers
         {
             var result = await _opcBrowserService.BrowseNodesAsync(id, itemId);
             return Ok(result);
+        }
+
+        private static string? ExtractProgId(URL? url)
+        {
+            if (url?.Path == null)
+            {
+                return null;
+            }
+
+            var segments = url.Path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0)
+            {
+                return null;
+            }
+
+            var first = segments[0];
+            if (first.StartsWith("{") && first.EndsWith("}", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            return first;
+        }
+
+        private static string? ExtractClsId(URL? url)
+        {
+            if (url?.Path == null)
+            {
+                return null;
+            }
+
+            var segments = url.Path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var last = segments.LastOrDefault();
+            if (string.IsNullOrWhiteSpace(last))
+            {
+                return null;
+            }
+
+            if (last.StartsWith("{") && last.EndsWith("}", StringComparison.Ordinal))
+            {
+                return last.Trim('{', '}');
+            }
+
+            return null;
         }
     }
 }
