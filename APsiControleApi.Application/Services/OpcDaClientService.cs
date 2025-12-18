@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using APsiControleApi.Application.DTOs;
@@ -28,10 +30,12 @@ namespace APsiControleApi.Application.Services
         };
 
         private readonly ILogger<OpcDaClientService> _logger;
+        private static bool _assembliesLoaded;
 
         public OpcDaClientService(ILogger<OpcDaClientService> logger)
         {
             _logger = logger;
+            EnsureOpcAssembliesLoaded();
         }
 
         public bool IsSupported => OperatingSystem.IsWindows();
@@ -507,6 +511,70 @@ namespace APsiControleApi.Application.Services
             }
 
             return result;
+        }
+
+        private static void EnsureOpcAssembliesLoaded()
+        {
+            if (_assembliesLoaded)
+            {
+                return;
+            }
+
+            LoadOpcAssembly("OpcNetApi.dll");
+            LoadOpcAssembly("OpcNetApi.Com.dll");
+            LoadOpcAssembly("OpcNetApi.Xml.dll");
+
+            AppDomain.CurrentDomain.AssemblyResolve += ResolveOpcAssemblies;
+            _assembliesLoaded = true;
+        }
+
+        private static Assembly? ResolveOpcAssemblies(object? sender, ResolveEventArgs args)
+        {
+            var name = new AssemblyName(args.Name).Name;
+            if (name is null)
+            {
+                return null;
+            }
+
+            return name switch
+            {
+                "OpcNetApi" => LoadOpcAssembly("OpcNetApi.dll"),
+                "OpcNetApi.Com" => LoadOpcAssembly("OpcNetApi.Com.dll"),
+                "OpcNetApi.Xml" => LoadOpcAssembly("OpcNetApi.Xml.dll"),
+                _ => null
+            };
+        }
+
+        private static Assembly? LoadOpcAssembly(string fileName)
+        {
+            try
+            {
+                var searchPaths = GetProbePaths(fileName);
+                foreach (var path in searchPaths)
+                {
+                    if (File.Exists(path))
+                    {
+                        return Assembly.LoadFrom(path);
+                    }
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+            return null;
+        }
+
+        private static IEnumerable<string> GetProbePaths(string fileName)
+        {
+            var baseDir = AppContext.BaseDirectory;
+            yield return Path.Combine(baseDir, fileName);
+
+            var relativeLib = Path.Combine(baseDir, "..", "..", "..", "Libs", "Opc", fileName);
+            yield return Path.GetFullPath(relativeLib);
+
+            var rootLib = Path.Combine(baseDir, "Libs", "Opc", fileName);
+            yield return Path.GetFullPath(rootLib);
         }
 
         private sealed class ServerScope : IDisposable
