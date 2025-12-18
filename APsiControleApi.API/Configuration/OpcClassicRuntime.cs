@@ -79,6 +79,7 @@ namespace APsiControleApi.API.Configuration
             if (!string.IsNullOrEmpty(baseDir))
             {
                 yield return Path.Combine(baseDir, fileName);
+                yield return Path.Combine(baseDir, "Libs", "Opc", fileName);
             }
 
             var current = baseDir;
@@ -99,15 +100,33 @@ namespace APsiControleApi.API.Configuration
 
             var envPaths = new[]
             {
+                Environment.GetEnvironmentVariable("OPC_DLL_HINT_PATH"),
                 Environment.GetEnvironmentVariable("OPCNETAPI_PATH"),
                 Environment.GetEnvironmentVariable("OPC_CLASSIC_DLL_PATH"),
-                Environment.GetEnvironmentVariable("SOFTING_OPC_SDK_DIR")
+                Environment.GetEnvironmentVariable("SOFTING_OPC_SDK_DIR"),
+                "E:\\APsiC_systems\\Projects\\APsiControl\\APsiControleApi\\Libs\\Opc"
             };
 
             foreach (var envPath in envPaths.Where(p => !string.IsNullOrWhiteSpace(p)))
             {
-                yield return Path.Combine(envPath!, fileName);
-                yield return Path.Combine(envPath!, "Libs", "Opc", fileName);
+                foreach (var hint in SplitPathList(envPath!))
+                {
+                    yield return Path.Combine(hint, fileName);
+                    yield return Path.Combine(hint, "Libs", "Opc", fileName);
+                }
+            }
+        }
+
+        private static IEnumerable<string> SplitPathList(string value)
+        {
+            var separator = OperatingSystem.IsWindows() ? ';' : ':';
+            foreach (var raw in value.Split(separator, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var trimmed = raw.Trim(' ', '"');
+                if (!string.IsNullOrWhiteSpace(trimmed))
+                {
+                    yield return trimmed;
+                }
             }
         }
     }
