@@ -7,8 +7,12 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 using APsiControleApi.API.Hubs;
+using APsiControleApi.Application.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Registra o AssemblyResolve das DLLs OPC DA antes de tocar nos serviços.
+OpcAssemblyResolver.EnsureInitialized();
 
 var shouldLogToFile = string.Equals(Environment.GetEnvironmentVariable("LOG_TO_FILE"), "true", StringComparison.OrdinalIgnoreCase)
     || builder.Configuration.GetValue<bool?>("Logging:FileLoggingEnabled") == true;

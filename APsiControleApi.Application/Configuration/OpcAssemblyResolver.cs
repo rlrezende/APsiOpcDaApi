@@ -14,7 +14,7 @@ namespace APsiControleApi.Application.Configuration
     /// que qualquer classe da API do OPC DA seja usada, habilitando o handler
     /// de AssemblyResolve para responder às tentativas de carga.
     /// </summary>
-    internal static class OpcAssemblyResolver
+    public static class OpcAssemblyResolver
     {
         private static bool _initialized;
 
@@ -26,7 +26,7 @@ namespace APsiControleApi.Application.Configuration
         }
 #pragma warning restore CA2255
 
-        internal static void EnsureInitialized()
+        public static void EnsureInitialized()
         {
             if (_initialized)
             {
