@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace APsiControleApi.API.Configuration
 {
@@ -16,6 +17,12 @@ namespace APsiControleApi.API.Configuration
         };
 
         private static bool _initialized;
+
+        [ModuleInitializer]
+        public static void InitializeModule()
+        {
+            Initialize();
+        }
 
         public static void Initialize()
         {
