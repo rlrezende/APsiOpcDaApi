@@ -575,11 +575,32 @@ namespace APsiControleApi.Application.Services
             var baseDir = AppContext.BaseDirectory;
             yield return Path.Combine(baseDir, fileName);
 
-            var relativeLib = Path.Combine(baseDir, "..", "..", "..", "Libs", "Opc", fileName);
-            yield return Path.GetFullPath(relativeLib);
+            var current = baseDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            for (int i = 0; i < 8 && !string.IsNullOrEmpty(current); i++)
+            {
+                var libsDir = Path.Combine(current, "Libs", "Opc");
+                yield return Path.Combine(libsDir, fileName);
 
-            var rootLib = Path.Combine(baseDir, "Libs", "Opc", fileName);
-            yield return Path.GetFullPath(rootLib);
+                var parent = Path.GetDirectoryName(current);
+                if (string.IsNullOrEmpty(parent) || string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+                current = parent;
+            }
+
+            var envPaths = new[]
+            {
+                Environment.GetEnvironmentVariable("OPCNETAPI_PATH"),
+                Environment.GetEnvironmentVariable("OPC_CLASSIC_DLL_PATH"),
+                Environment.GetEnvironmentVariable("SOFTING_OPC_SDK_DIR")
+            };
+
+            foreach (var envPath in envPaths.Where(p => !string.IsNullOrWhiteSpace(p)))
+            {
+                yield return Path.Combine(envPath!, fileName);
+                yield return Path.Combine(envPath!, "Libs", "Opc", fileName);
+            }
         }
 
         private sealed class ServerScope : IDisposable
