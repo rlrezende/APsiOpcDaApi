@@ -19,23 +19,28 @@ namespace APsiControleApi.Application.Services
 {
     public class OpcDaClientService : IOpcDaClientService
     {
-        private static readonly PropertyID[] DefaultPropertyIds =
-        {
-            Property.DESCRIPTION,
-            Property.DATATYPE,
-            Property.ACCESSRIGHTS,
-            Property.EUINFO,
-            Property.HIGHEU,
-            Property.LOWEU
-        };
+        private static readonly PropertyID[] DefaultPropertyIds;
 
         private readonly ILogger<OpcDaClientService> _logger;
         private static bool _assembliesLoaded;
 
+        static OpcDaClientService()
+        {
+            EnsureOpcAssembliesLoaded();
+            DefaultPropertyIds = new[]
+            {
+                Property.DESCRIPTION,
+                Property.DATATYPE,
+                Property.ACCESSRIGHTS,
+                Property.EUINFO,
+                Property.HIGHEU,
+                Property.LOWEU
+            };
+        }
+
         public OpcDaClientService(ILogger<OpcDaClientService> logger)
         {
             _logger = logger;
-            EnsureOpcAssembliesLoaded();
         }
 
         public bool IsSupported => OperatingSystem.IsWindows();
