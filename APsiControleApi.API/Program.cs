@@ -1,6 +1,5 @@
 using System;
 using APsiControleApi.API.Extensions;
-using APsiControleApi.API.Configuration;
 using APsiControleApi.API.Logging;
 using FluentValidation.AspNetCore;
 using System.IO;
@@ -33,6 +32,12 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 {
     serverOptions.Limits.MaxRequestBodySize = null;
 });
+
+var opcApiBaseUrl = builder.Configuration.GetValue<string>("OpcDaApi:BaseUrl");
+if (!string.IsNullOrWhiteSpace(opcApiBaseUrl))
+{
+    builder.WebHost.UseUrls(opcApiBaseUrl);
+}
 
 // SignalR com erros detalhados
 builder.Services.AddSignalR(options =>

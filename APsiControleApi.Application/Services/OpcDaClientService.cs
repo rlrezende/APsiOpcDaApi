@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using APsiControleApi.Application.Configuration;
 using APsiControleApi.Application.DTOs;
 using APsiControleApi.Application.Interfaces;
 using APsiControleApi.Domain.Enum;
@@ -23,6 +24,7 @@ namespace APsiControleApi.Application.Services
 
         static OpcDaClientService()
         {
+            OpcAssemblyResolver.Initialize();
             DefaultPropertyIds = new[]
             {
                 Property.DESCRIPTION,

@@ -5,37 +5,67 @@ using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-namespace APsiControleApi.API.Controllers
+namespace APsiControleApi.API.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class TagController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class TagController : GenericController<Tag, TagDTO>
+    private readonly ITagService _tagService;
+    private readonly IGenericService<Tag, TagDTO> _genericService;
+
+    public TagController(IGenericService<Tag, TagDTO> genericService, ITagService tagService)
     {
-        private readonly ITagService _tagService;
+        _genericService = genericService;
+        _tagService = tagService;
+    }
 
-        public TagController(IGenericService<Tag, TagDTO> service, ITagService tagService)
-            : base(service)
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<TagDTO>>> GetAll()
+    {
+        var tags = await _genericService.GetAllAsync();
+        return Ok(tags);
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<TagDTO>> GetById(Guid id)
+    {
+        var tag = await _genericService.GetByIdAsync(id);
+        return tag is null ? NotFound() : Ok(tag);
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<TagDTO>> Create([FromBody] TagDTO dto)
+    {
+        var created = await _genericService.AddAsync(dto);
+        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] TagDTO dto)
+    {
+        dto.Id = id;
+        await _genericService.UpdateAsync(dto);
+        return NoContent();
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        await _genericService.DeleteAsync(id);
+        return NoContent();
+    }
+
+    [HttpGet("paginadas-com-leituras")]
+    public async Task<IActionResult> GetPagedTagsWithReadings([FromQuery] int pageIndex = 1, [FromQuery] int pageSize = 10)
+    {
+        if (pageIndex < 1 || pageSize <= 0)
         {
-            _tagService = tagService;
+            return BadRequest("Os parâmetros de paginação são inválidos.");
         }
 
-        /// <summary>
-        /// Retorna tags paginadas que possuem leituras associadas.
-        /// </summary>
-        /// <param name="pageIndex">Índice da página</param>
-        /// <param name="pageSize">Tamanho da página</param>
-        /// <returns>Lista de tags e o total de itens</returns>
-        [HttpGet("paginadas-com-leituras")]
-        public async Task<IActionResult> GetPagedTagsWithReadings([FromQuery] int pageIndex = 1, [FromQuery] int pageSize = 10)
-        {
-            if (pageIndex < 1 || pageSize <= 0)
-            {
-                return BadRequest("Os parâmetros de paginação são inválidos.");
-            }
+        var (itemsDto, totalItems) = await _tagService.GetPagedTagsWithReadingsAsync(pageIndex, pageSize);
 
-            var (itemsDto, totalItems) = await _tagService.GetPagedTagsWithReadingsAsync(pageIndex, pageSize);
-
-            return Ok(new { totalItems ,itemsDto });
-        }
+        return Ok(new { totalItems, itemsDto });
     }
 }

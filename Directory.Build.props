@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <Platforms>x86</Platforms>
+    <RuntimeIdentifiers>win-x86</RuntimeIdentifiers>
+    <PlatformTarget>x86</PlatformTarget>
+    <UseAppHost>true</UseAppHost>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+</Project>

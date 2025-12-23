@@ -5,9 +5,9 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-namespace APsiControleApi.API.Configuration
+namespace APsiControleApi.Application.Configuration
 {
-    internal static class OpcClassicRuntime
+    internal static class OpcAssemblyResolver
     {
         private static readonly string[] AssemblyFiles =
         {
@@ -18,11 +18,13 @@ namespace APsiControleApi.API.Configuration
 
         private static bool _initialized;
 
+        #pragma warning disable CA2255
         [ModuleInitializer]
         public static void InitializeModule()
         {
             Initialize();
         }
+        #pragma warning restore CA2255
 
         public static void Initialize()
         {
@@ -36,11 +38,11 @@ namespace APsiControleApi.API.Configuration
                 TryLoad(file);
             }
 
-            AppDomain.CurrentDomain.AssemblyResolve += HandleAssemblyResolve;
+            AppDomain.CurrentDomain.AssemblyResolve += HandleResolve;
             _initialized = true;
         }
 
-        private static Assembly? HandleAssemblyResolve(object? sender, ResolveEventArgs args)
+        private static Assembly? HandleResolve(object? sender, ResolveEventArgs args)
         {
             var name = new AssemblyName(args.Name).Name;
             if (string.IsNullOrWhiteSpace(name))
@@ -48,9 +50,10 @@ namespace APsiControleApi.API.Configuration
                 return null;
             }
 
-            return AssemblyFiles.FirstOrDefault(f => string.Equals(Path.GetFileNameWithoutExtension(f), name, StringComparison.OrdinalIgnoreCase)) is { } file
-                ? TryLoad(file)
-                : null;
+            var file = AssemblyFiles.FirstOrDefault(f =>
+                string.Equals(Path.GetFileNameWithoutExtension(f), name, StringComparison.OrdinalIgnoreCase));
+
+            return file != null ? TryLoad(file) : null;
         }
 
         private static Assembly? TryLoad(string fileName)
@@ -66,7 +69,7 @@ namespace APsiControleApi.API.Configuration
                 }
                 catch
                 {
-                    // ignorado - continuamos tentando outros caminhos
+                    // continua tentando outros caminhos
                 }
             }
 
@@ -109,7 +112,7 @@ namespace APsiControleApi.API.Configuration
 
             foreach (var envPath in envPaths.Where(p => !string.IsNullOrWhiteSpace(p)))
             {
-                foreach (var hint in SplitPathList(envPath!))
+                foreach (var hint in SplitPaths(envPath!))
                 {
                     yield return Path.Combine(hint, fileName);
                     yield return Path.Combine(hint, "Libs", "Opc", fileName);
@@ -117,7 +120,7 @@ namespace APsiControleApi.API.Configuration
             }
         }
 
-        private static IEnumerable<string> SplitPathList(string value)
+        private static IEnumerable<string> SplitPaths(string value)
         {
             var separator = OperatingSystem.IsWindows() ? ';' : ':';
             foreach (var raw in value.Split(separator, StringSplitOptions.RemoveEmptyEntries))
