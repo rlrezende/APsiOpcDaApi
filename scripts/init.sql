@@ -1,14 +1,14 @@
 -- Verifica se o banco de dados existe antes de criar
 DO $$
 BEGIN
-   IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'APsiControleApiDb') THEN
-      CREATE DATABASE APsiControleApiDb;
+   IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'APsiOpcDaApiDb') THEN
+      CREATE DATABASE APsiOpcDaApiDb;
    END IF;
 END
 $$;
 
 -- Conecta-se ao banco de dados criado
-\c APsiControleApiDb
+\c APsiOpcDaApiDb
 
 -- Verifica se o usuário existe antes de criar
 DO $$
@@ -30,3 +30,4 @@ $$;
 
 -- Atribui permissões completas ao usuário no esquema
 GRANT ALL PRIVILEGES ON SCHEMA APsiCDb TO postgres;
+

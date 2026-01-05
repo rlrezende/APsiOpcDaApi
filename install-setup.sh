@@ -8,7 +8,7 @@ until nc -z -v -w30 apsic_postgres 5432; do
 done
 
 echo "Banco de dados conectado. Executando migrações..."
-dotnet ef database update --project APsiControleApi.Infrastructure --startup-project APsiControleApi.API
+dotnet ef database update --project APsiOpcDaApi.Infrastructure --startup-project APsiOpcDaApi.API
 
 if [ $? -eq 0 ]; then
     echo "Migrações aplicadas com sucesso."
@@ -18,7 +18,7 @@ else
 fi
 
 echo "Executando seed..."
-dotnet run --project APsiControleApi.API --no-build -- SeedDatabase
+dotnet run --project APsiOpcDaApi.API --no-build -- SeedDatabase
 
 if [ $? -eq 0 ]; then
     echo "Seed aplicado com sucesso."
@@ -28,4 +28,5 @@ else
 fi
 
 echo "Iniciando a aplicação..."
-exec dotnet APsiControleApi.API.dll
+exec dotnet APsiOpcDaApi.API.dll
+

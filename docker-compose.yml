@@ -3,12 +3,12 @@ version: '3.8'
 services:
   api:
     build:
-      context: /home/ricardo/Documentos/Particular/APsiC/APsiControleApi
+      context: /home/ricardo/Documentos/Particular/APsiC/APsiOpcDaApi
       dockerfile: Dockerfile
     container_name: apsic_api
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ConnectionStrings__DefaultConnection=Host=apsic_postgres;Port=5432;Database=APsiControleApiDb;Username=postgres;Password=Teste2010
+      - ConnectionStrings__DefaultConnection=Host=apsic_postgres;Port=5432;Database=APsiOpcDaApiDb;Username=postgres;Password=Teste2010
     depends_on:
       - postgres  # Define que a API depende do serviço do PostgreSQL
     ports:
@@ -21,7 +21,7 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=Teste2010
-      - POSTGRES_DB=APsiControleApiDb
+      - POSTGRES_DB=APsiOpcDaApiDb
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql  # Caminho para o script de inicialização
@@ -31,3 +31,4 @@ services:
 
 volumes:
   postgres_data:
+

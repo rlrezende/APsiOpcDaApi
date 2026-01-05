@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\APsiOpcDaApi.Domain\APsiOpcDaApi.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
+    <PackageReference Include="BrazilianUtils" Version="2.0.0" />
+    <PackageReference Include="EPPlus" Version="5.8.0" />
+    <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.0" />
+    <PackageReference Include="IdentityModel" Version="7.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua" Version="1.5.376.213" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="OpcNetApi">
+      <HintPath>..\Libs\Opc\OpcNetApi.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="OpcNetApi.Com">
+      <HintPath>..\Libs\Opc\OpcNetApi.Com.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="OpcComRcw">
+      <HintPath>..\Libs\Opc\OpcComRcw.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="OpcRcw.Dx">
+      <HintPath>..\Libs\Opc\OpcRcw.Dx.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="OpcRcw.Hda">
+      <HintPath>..\Libs\Opc\OpcRcw.Hda.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\Libs\Opc\*.dll">
+      <Link>%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
+

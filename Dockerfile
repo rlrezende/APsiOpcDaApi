@@ -12,8 +12,8 @@ RUN dotnet tool install --global dotnet-ef
 ENV PATH="$PATH:/root/.dotnet/tools"
 
 # Restaure e publique a solução
-RUN dotnet restore APsiControleApi.API/APsiControleApi.API.csproj
-RUN dotnet publish APsiControleApi.API/APsiControleApi.API.csproj -c Release -o out
+RUN dotnet restore APsiOpcDaApi.API/APsiOpcDaApi.API.csproj
+RUN dotnet publish APsiOpcDaApi.API/APsiOpcDaApi.API.csproj -c Release -o out
 
 # Use uma imagem mais leve para rodar a aplicação
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
@@ -21,4 +21,5 @@ WORKDIR /app
 COPY --from=build /app/out .
 
 # Defina o comando de entrada para iniciar a API
-ENTRYPOINT ["dotnet", "APsiControleApi.API.dll"]
+ENTRYPOINT ["dotnet", "APsiOpcDaApi.API.dll"]
+
