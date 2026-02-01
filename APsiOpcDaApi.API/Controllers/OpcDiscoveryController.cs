@@ -18,11 +18,15 @@ namespace APsiOpcDaApi.API.Controllers
         }
 
         [HttpGet("scan")]
-        public async Task<IActionResult> ScanNetwork([FromQuery] string? networkRange = null, [FromQuery] int timeout = 30)
+        public async Task<IActionResult> ScanNetwork([FromQuery] Guid unidadeId, [FromQuery] string? networkRange = null, [FromQuery] int timeout = 30)
         {
             try
             {
-                var result = await _discoveryService.ScanNetworkAsync(networkRange, timeout);
+                if (unidadeId == Guid.Empty)
+                {
+                    return BadRequest(new { message = "UnidadeId é obrigatório." });
+                }
+                var result = await _discoveryService.ScanNetworkAsync(unidadeId, networkRange, timeout);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -36,7 +40,12 @@ namespace APsiOpcDaApi.API.Controllers
         {
             try
             {
+                if (request.UnidadeId == Guid.Empty)
+                {
+                    return BadRequest(new { message = "UnidadeId é obrigatório." });
+                }
                 var result = await _discoveryService.AddManualServerAsync(
+                    request.UnidadeId,
                     request.Name, 
                     request.Endpoint, 
                     request.Username, 
@@ -76,10 +85,14 @@ namespace APsiOpcDaApi.API.Controllers
         }
 
         [HttpPost("discover-localhost")]
-        public async Task<IActionResult> DiscoverAndSaveLocalhost([FromQuery] int port = 4840)
+        public async Task<IActionResult> DiscoverAndSaveLocalhost([FromQuery] Guid unidadeId, [FromQuery] int port = 4840)
         {
             try
             {
+                if (unidadeId == Guid.Empty)
+                {
+                    return BadRequest(new { message = "UnidadeId é obrigatório." });
+                }
                 var endpoint = $"opc.tcp://localhost:{port}";
                 
                 // Testar se o servidor está online
@@ -111,7 +124,7 @@ namespace APsiOpcDaApi.API.Controllers
 
                 // Adicionar novo servidor localhost
                 var serverName = $"Localhost OPC Server (:{port})";
-                var discoveredServer = await _discoveryService.AddManualServerAsync(serverName, endpoint);
+                var discoveredServer = await _discoveryService.AddManualServerAsync(unidadeId, serverName, endpoint);
                 
                 return Ok(new { 
                     message = "Servidor localhost descoberto e salvo com sucesso", 
@@ -134,6 +147,7 @@ namespace APsiOpcDaApi.API.Controllers
 
     public class AddManualServerRequest
     {
+        public Guid UnidadeId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Endpoint { get; set; } = string.Empty;
         public string? Username { get; set; }
@@ -146,4 +160,3 @@ namespace APsiOpcDaApi.API.Controllers
         public string Endpoint { get; set; } = string.Empty;
     }
 }
-
