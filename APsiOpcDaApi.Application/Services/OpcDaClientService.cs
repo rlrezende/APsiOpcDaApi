@@ -261,10 +261,18 @@ namespace APsiOpcDaApi.Application.Services
                 .Select(id => new Item { ItemName = id })
                 .ToArray();
 
-            ItemValueResult[]? results;
+            ItemValueResult[]? results = null;
             try
             {
+                // TENTATIVA 1: Usar Read() normal
                 results = scope.Server.Read(items);
+            }
+            catch (TypeLoadException ex)
+            {
+                _logger.LogWarning(ex, "❌ ERRO TYPELOAD no Read() - Tentando método alternativo via Browse...");
+                
+                // ALTERNATIVA: Usar GetProperties via Browse (que funciona!)
+                return ReadViaProperties(scope.Server, itemIds);
             }
             catch (Exception ex)
             {
@@ -539,6 +547,85 @@ namespace APsiOpcDaApi.Application.Services
                     Server.Dispose();
                 }
             }
+        }
+
+        /// <summary>
+        /// Método alternativo para ler valores usando GetProperties (que funciona quando Read() falha)
+        /// </summary>
+        private IReadOnlyList<OpcTagDTO> ReadViaProperties(Opc.Da.Server server, List<string> itemIds)
+        {
+            _logger.LogInformation("🔄 Usando método alternativo de leitura via Properties...");
+            
+            var tags = new List<OpcTagDTO>();
+            
+            foreach (var itemId in itemIds)
+            {
+                try
+                {
+                    // Usar GetProperties para obter valor atual (funciona porque usa Browse internamente)
+                    var identifier = new ItemIdentifier(itemId);
+                    var properties = server.GetProperties(new[] { identifier }, new[] { Property.VALUE }, false);
+                    
+                    if (properties?.Length > 0 && properties[0]?.Length > 0)
+                    {
+                        var valueProperty = properties[0][0];
+                        var tag = new OpcTagDTO
+                        {
+                            NodeId = itemId,
+                            DisplayName = itemId,
+                            BrowseName = itemId,
+                            NodeClass = "Variable",
+                            DataType = valueProperty.Value?.GetType().Name ?? "Unknown",
+                            Value = valueProperty.Value,
+                            Quality = "Good", // GetProperties não retorna qualidade, assumir Good
+                            Timestamp = DateTime.UtcNow
+                        };
+                        
+                        tags.Add(tag);
+                        _logger.LogInformation("✅ Tag {TagId} lida via Properties: {Value}", itemId, valueProperty.Value);
+                    }
+                    else
+                    {
+                        // Tag não encontrada - adicionar com valor nulo
+                        var tag = new OpcTagDTO
+                        {
+                            NodeId = itemId,
+                            DisplayName = itemId,
+                            BrowseName = itemId,
+                            NodeClass = "Variable",
+                            DataType = "Unknown",
+                            Value = null,
+                            Quality = "Bad",
+                            Timestamp = DateTime.UtcNow
+                        };
+                        
+                        tags.Add(tag);
+                        _logger.LogWarning("⚠️ Tag {TagId} não encontrada via Properties", itemId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ Erro ao ler tag {TagId} via Properties", itemId);
+                    
+                    // Adicionar tag com erro
+                    var errorTag = new OpcTagDTO
+                    {
+                        NodeId = itemId,
+                        DisplayName = itemId,
+                        BrowseName = itemId,
+                        NodeClass = "Variable",
+                        DataType = "Error",
+                        Value = null,
+                        Quality = "Bad",
+                        Timestamp = DateTime.UtcNow
+                    };
+                    
+                    tags.Add(errorTag);
+                }
+            }
+            
+            _logger.LogInformation("📊 Leitura alternativa concluída: {Count} tags processadas", tags.Count);
+            return tags;
         }
     }
 }

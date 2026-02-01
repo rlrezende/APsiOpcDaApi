@@ -80,6 +80,8 @@ namespace APsiOpcDaApi.API.Extensions
             services.AddScoped<IOpcDiscoveryService, OpcDiscoveryService>();
             services.AddScoped<IDatabaseBrowserService, DatabaseBrowserService>();
             services.AddScoped<IDatabaseMonitoringService, DatabaseMonitoringService>();
+            // Serviço de manipulação web que requer arquitetura x86
+            services.AddScoped<IWebBrowserService, WebBrowserService>();
         }
 
         private static void ConfigureAuthentication(IServiceCollection services, IConfiguration configuration)

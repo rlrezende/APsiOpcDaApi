@@ -4,6 +4,11 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Forçar arquitetura x86 para suporte a OPC Classic e componentes de manipulação web -->
+    <PlatformTarget>x86</PlatformTarget>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <!-- Comentário: Esta API requer x86 devido às dependências OPC Classic (OpcNetApi.dll) 
+         e componentes de manipulação web que só funcionam em 32-bit -->
   </PropertyGroup>
 
  <ItemGroup>
@@ -34,22 +39,27 @@
     <Reference Include="OpcNetApi">
       <HintPath>..\Libs\Opc\OpcNetApi.dll</HintPath>
       <Private>true</Private>
+      <CopyLocal>true</CopyLocal>
     </Reference>
     <Reference Include="OpcNetApi.Com">
       <HintPath>..\Libs\Opc\OpcNetApi.Com.dll</HintPath>
       <Private>true</Private>
+      <CopyLocal>true</CopyLocal>
     </Reference>
     <Reference Include="OpcComRcw">
       <HintPath>..\Libs\Opc\OpcComRcw.dll</HintPath>
       <Private>true</Private>
+      <CopyLocal>true</CopyLocal>
     </Reference>
     <Reference Include="OpcRcw.Dx">
       <HintPath>..\Libs\Opc\OpcRcw.Dx.dll</HintPath>
       <Private>true</Private>
+      <CopyLocal>true</CopyLocal>
     </Reference>
     <Reference Include="OpcRcw.Hda">
       <HintPath>..\Libs\Opc\OpcRcw.Hda.dll</HintPath>
       <Private>true</Private>
+      <CopyLocal>true</CopyLocal>
     </Reference>
   </ItemGroup>
 

@@ -20,7 +20,7 @@ namespace APsiOpcDaApi.Application.Infrastructure.HostedServices
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("OPC Monitor Background Service iniciado");
+            _logger.LogInformation("🚀 OPC Monitor Background Service iniciado");
             
 
              using var scope = _serviceProvider.CreateScope();
@@ -30,15 +30,18 @@ namespace APsiOpcDaApi.Application.Infrastructure.HostedServices
             {
                 try
                 {
+                    _logger.LogInformation("🔄 Iniciando ciclo de monitoramento...");
 
                     await monitoringService.MonitorarTagsAsync(stoppingToken);
 
+                    _logger.LogInformation("✅ Ciclo de monitoramento concluído");
+                    
                     // Aguardar antes da próxima verificação (30 segundos)
                     await Task.Delay(30000, stoppingToken);
                 }
                 catch (OperationCanceledException)
                 {
-                    _logger.LogInformation("OPC Monitor Background Service cancelado");
+                    _logger.LogInformation("🛑 OPC Monitor Background Service cancelado");
                     break;
                 }
                 catch (Exception ex)

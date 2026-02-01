@@ -2,6 +2,21 @@
 
 Microserviço responsável exclusivamente pelas rotinas de OPC DA/UA usadas pelo desktop (cadastro de servidores/grupos/tags, discovery, browser e jobs de monitoração). O código foi extraído da API original e roda isolado em `net9.0`, alvo `win-x86`, reutilizando as mesmas tabelas do banco existente – nenhuma migration nova é executada aqui.
 
+## ⚠️ IMPORTANTE - Arquitetura x86
+
+Esta API **OBRIGATORIAMENTE** requer arquitetura x86 (32-bit) devido às seguintes dependências:
+
+- **OPC Classic Libraries** (`OpcNetApi.dll`, `OpcNetApi.Com.dll`) - Requerem x86 para interoperabilidade COM
+- **Componentes de Manipulação Web** - WebBrowser Control e ActiveX precisam de x86 para funcionar corretamente
+- **Bibliotecas nativas OPC** - A maioria dos servidores OPC DA são compilados em x86
+
+### Por que x86?
+
+1. **OPC Classic (OPC DA)** foi desenvolvido antes da era x64 e muitos servidores OPC ainda são x86
+2. **Componentes COM/ActiveX** frequentemente dependem de registros x86 específicos
+3. **WebBrowser Control** em .NET pode ter limitações em x64 para certas funcionalidades
+4. **Interoperabilidade** - A maioria dos sistemas industriais ainda usa componentes x86
+
 ## Como rodar
 
 ```bash
@@ -26,6 +41,27 @@ dotnet publish APsiOpcDaApi.API/APsiOpcDaApi.API.csproj \
 ```
 
 Esse passo também é disparado por `npm run build:artifacts`, que copia o resultado para `apps/APsiOpcDaApi` e embala junto ao Electron.
+
+## Serviços Disponíveis
+
+### OPC DA/UA Services
+- **OpcServerService**: Gerenciamento de servidores OPC
+- **OpcBrowserService**: Navegação em árvores OPC
+- **OpcDaClientService**: Cliente OPC Classic (requer x86)
+- **OpcDiscoveryService**: Descoberta automática de servidores
+
+### Web Browser Services (x86)
+- **WebBrowserService**: Manipulação de componentes web que requerem x86
+  - `NavigateToPageAsync()`: Navegação web usando WebBrowser Control
+  - `ExecuteScriptAsync()`: Execução de JavaScript em páginas
+  - `ManipulateDomElementAsync()`: Manipulação de elementos DOM
+  - `IsX86Supported()`: Verificação de suporte x86
+
+### Endpoints API
+- `/api/opcda/*`: Endpoints OPC Classic
+- `/api/webbrowser/*`: Endpoints de manipulação web (requer x86)
+- `/api/opc-connection/*`: Gerenciamento de conexões
+- `/api/opcbrowser/*`: Navegação OPC
 
 ## Pontos importantes
 

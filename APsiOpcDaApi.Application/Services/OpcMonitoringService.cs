@@ -526,6 +526,8 @@ namespace APsiOpcDaApi.Application.Services
                         var tag = await tagService.GetByIdAsync(tagId);
                         if (tag != null)
                         {
+                            _logger.LogInformation($"📊 Processando tag {tag.Nome} (ID: {tagId}): Valor {valorNumerico}");
+                            
                             tag.ValorAtual = valorNumerico;
                             await tagService.UpdateAsync(tag);
 
@@ -544,6 +546,8 @@ namespace APsiOpcDaApi.Application.Services
                                 dataValue.ServerTimestamp != DateTime.MinValue 
                                     ? dataValue.ServerTimestamp 
                                     : DateTime.UtcNow);
+                                    
+                            _logger.LogInformation($"✅ Tag {tag.Nome} salva no BD e enviada via SignalR");
                         }
                     }
                 }
