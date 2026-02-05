@@ -29,7 +29,7 @@ namespace APsiOpcDaApi.Application.Services
             _mapper = mapper;
         }
 
-        public async Task<OpcDiscoveryResultDTO> ScanNetworkAsync(string? networkRange = null, int timeout = 30)
+        public async Task<OpcDiscoveryResultDTO> ScanNetworkAsync(Guid unidadeId, string? networkRange = null, int timeout = 30)
         {
             var startTime = DateTime.UtcNow;
             var discoveredServers = new List<OpcDiscoveredServerDTO>();
@@ -48,7 +48,7 @@ namespace APsiOpcDaApi.Application.Services
                 
                 foreach (var result in results.Where(r => r != null))
                 {
-                    await SaveDiscoveredServerAsync(result, networkRange);
+                    await SaveDiscoveredServerAsync(result, unidadeId, networkRange);
                     discoveredServers.Add(result);
                 }
             }
@@ -67,7 +67,7 @@ namespace APsiOpcDaApi.Application.Services
             };
         }
 
-        public async Task<OpcDiscoveredServerDTO> AddManualServerAsync(string name, string endpoint, string? username = null, string? password = null)
+        public async Task<OpcDiscoveredServerDTO> AddManualServerAsync(Guid unidadeId, string name, string endpoint, string? username = null, string? password = null)
         {
             var isOnline = await TestServerConnectionAsync(endpoint);
             
@@ -83,7 +83,7 @@ namespace APsiOpcDaApi.Application.Services
             };
 
             // Salvar e obter o ID do OpcServer criado
-            var opcServerId = await SaveDiscoveredServerAsync(discoveredServer);
+            var opcServerId = await SaveDiscoveredServerAsync(discoveredServer, unidadeId);
             
             // Retornar com o ID do OpcServer para que possa ser usado diretamente
             discoveredServer.Id = opcServerId;
@@ -182,7 +182,7 @@ namespace APsiOpcDaApi.Application.Services
             return connections;
         }
 
-        public async Task<OpcDiscoveredServerDTO> DiscoverLocalhostAsync(int port = 4840)
+        public async Task<OpcDiscoveredServerDTO> DiscoverLocalhostAsync(Guid unidadeId, int port = 4840)
         {
             var endpoint = $"opc.tcp://localhost:{port}";
             var name = $"Localhost OPC Server (:{port})";
@@ -235,14 +235,18 @@ namespace APsiOpcDaApi.Application.Services
             };
 
             // Salvar e obter o ID do OpcServer criado
-            var opcServerId = await SaveDiscoveredServerAsync(discoveredServer);
+            var opcServerId = await SaveDiscoveredServerAsync(discoveredServer, unidadeId);
             discoveredServer.Id = opcServerId; // Usar o ID do OpcServer
 
             return discoveredServer;
         }
 
-        private async Task<Guid> SaveDiscoveredServerAsync(OpcDiscoveredServerDTO discoveredServer, string? networkRange = null)
+        private async Task<Guid> SaveDiscoveredServerAsync(OpcDiscoveredServerDTO discoveredServer, Guid unidadeId, string? networkRange = null)
         {
+            if (unidadeId == Guid.Empty)
+            {
+                throw new InvalidOperationException("UnidadeId é obrigatório para salvar servidores descobertos.");
+            }
             // Salvar na tabela de descoberta
             var existingDiscovered = await _discoveredServerRepository.GetByEndpointAsync(discoveredServer.Endpoint);
             if (existingDiscovered == null)
@@ -269,7 +273,7 @@ namespace APsiOpcDaApi.Application.Services
                     {
                         Nome = discoveredServer.Name,
                         Endpoint = discoveredServer.Endpoint,
-                        UnidadeId = await GetDefaultUnidadeIdAsync(),
+                        UnidadeId = unidadeId,
                         Tipo = TipoOpcServer.Ua,
                         Descricao = discoveredServer.ApplicationUri
                     };
@@ -285,13 +289,6 @@ namespace APsiOpcDaApi.Application.Services
 
             // Se não estiver online, retornar um ID temporário (não deve acontecer)
             return Guid.NewGuid();
-        }
-
-        private async Task<Guid> GetDefaultUnidadeIdAsync()
-        {
-            // Implementar lógica para obter unidade padrão
-            // Por enquanto, retornar um GUID fixo ou criar uma unidade padrão
-            return new Guid("7f9ab23c-9860-4daa-9489-e5806b9f63d1"); // Usar o mesmo GUID que está sendo usado em outros lugares
         }
 
         private async Task<OpcDiscoveredServerDTO?> ScanSingleIpAsync(string ipAddress, int timeout)
@@ -402,4 +399,3 @@ namespace APsiOpcDaApi.Application.Services
         }
     }
 }
-

@@ -22,6 +22,8 @@ namespace APsiOpcDaApi.Application.Services
 
         private readonly ILogger<OpcDaClientService> _logger;
 
+        private const string BridgeEnvVar = "OPC_DA_BRIDGE_URL";
+
         static OpcDaClientService()
         {
             OpcAssemblyResolver.Initialize();
@@ -49,6 +51,83 @@ namespace APsiOpcDaApi.Application.Services
             return Task.Run(() => RunOnSta(() => BrowseInternal(server, itemId)));
         }
 
+        private bool TryGetBridgeUrl(out string url)
+        {
+            url = Environment.GetEnvironmentVariable(BridgeEnvVar) ?? string.Empty;
+            return !string.IsNullOrWhiteSpace(url);
+        }
+
+        private async Task<IReadOnlyList<OpcTagDTO>> ReadViaBridgeAsync(OpcServerDTO server, List<string> itemIds)
+        {
+            try
+            {
+                if (!TryGetBridgeUrl(out var url))
+                {
+                    return Array.Empty<OpcTagDTO>();
+                }
+
+                using var client = new System.Net.Http.HttpClient();
+                var payload = new
+                {
+                    host = server.Host ?? "localhost",
+                    progId = server.ProgId ?? server.Endpoint ?? string.Empty,
+                    clsId = server.ClsId ?? string.Empty,
+                    itemIds = itemIds
+                };
+                var json = System.Text.Json.JsonSerializer.Serialize(payload);
+                var content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
+                var response = await client.PostAsync(url.TrimEnd('/') + "/read", content);
+                response.EnsureSuccessStatusCode();
+                var body = await response.Content.ReadAsStringAsync();
+                var bridgeResponse = System.Text.Json.JsonSerializer.Deserialize<BridgeReadResponse>(body);
+                var tags = new List<OpcTagDTO>();
+
+                if (bridgeResponse?.Items != null)
+                {
+                    foreach (var item in bridgeResponse.Items)
+                    {
+                        tags.Add(new OpcTagDTO
+                        {
+                            NodeId = item.ItemId ?? string.Empty,
+                            DisplayName = item.ItemId ?? string.Empty,
+                            BrowseName = item.ItemId ?? string.Empty,
+                            NodeClass = "Variable",
+                            DataType = string.Empty,
+                            ValorAtual = item.Value,
+                            Quality = item.Quality ?? string.Empty,
+                            Timestamp = DateTime.TryParse(item.Timestamp, out var ts) ? ts : DateTime.UtcNow
+                        });
+                    }
+                }
+
+                if (bridgeResponse?.Errors != null && bridgeResponse.Errors.Count > 0)
+                {
+                    _logger.LogWarning("OPC DA Bridge retornou erros: {Errors}", string.Join("; ", bridgeResponse.Errors));
+                }
+
+                return tags;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao ler via OPC DA Bridge");
+                return Array.Empty<OpcTagDTO>();
+            }
+        }
+
+        private sealed class BridgeReadResponse
+        {
+            public List<BridgeTagValue>? Items { get; set; }
+            public List<string>? Errors { get; set; }
+        }
+
+        private sealed class BridgeTagValue
+        {
+            public string? ItemId { get; set; }
+            public string? Value { get; set; }
+            public string? Quality { get; set; }
+            public string? Timestamp { get; set; }
+        }
+
         public Task<IReadOnlyList<OpcTagDTO>> ReadValuesAsync(OpcServerDTO server, IEnumerable<string> itemIds)
         {
             EnsureCanUseDa(server);
@@ -66,6 +145,11 @@ namespace APsiOpcDaApi.Application.Services
             if (normalizedIds.Count == 0)
             {
                 return Task.FromResult<IReadOnlyList<OpcTagDTO>>(Array.Empty<OpcTagDTO>());
+            }
+
+            if (TryGetBridgeUrl(out _))
+            {
+                return ReadViaBridgeAsync(server, normalizedIds);
             }
 
             return Task.Run(() => RunOnSta(() => ReadInternal(server, normalizedIds)));
@@ -261,10 +345,18 @@ namespace APsiOpcDaApi.Application.Services
                 .Select(id => new Item { ItemName = id })
                 .ToArray();
 
-            ItemValueResult[]? results;
+            ItemValueResult[]? results = null;
             try
             {
+                // TENTATIVA 1: Usar Read() normal
                 results = scope.Server.Read(items);
+            }
+            catch (TypeLoadException ex)
+            {
+                _logger.LogWarning(ex, "❌ ERRO TYPELOAD no Read() - Tentando método alternativo via Browse...");
+                
+                // ALTERNATIVA: Usar GetProperties via Browse (que funciona!)
+                return ReadViaProperties(scope.Server, itemIds);
             }
             catch (Exception ex)
             {
@@ -540,6 +632,84 @@ namespace APsiOpcDaApi.Application.Services
                 }
             }
         }
+
+        /// <summary>
+        /// Método alternativo para ler valores usando GetProperties (que funciona quando Read() falha)
+        /// </summary>
+        private IReadOnlyList<OpcTagDTO> ReadViaProperties(Opc.Da.Server server, List<string> itemIds)
+        {
+            _logger.LogInformation("🔄 Usando método alternativo de leitura via Properties...");
+            
+            var tags = new List<OpcTagDTO>();
+            
+            foreach (var itemId in itemIds)
+            {
+                try
+                {
+                    // Usar GetProperties para obter valor atual (funciona porque usa Browse internamente)
+                    var identifier = new ItemIdentifier(itemId);
+                    var properties = server.GetProperties(new[] { identifier }, new[] { Property.VALUE }, false);
+                    
+                    if (properties?.Length > 0 && properties[0]?.Count > 0)
+                    {
+                        var valueProperty = properties[0][0];
+                        var tag = new OpcTagDTO
+                        {
+                            NodeId = itemId,
+                            DisplayName = itemId,
+                            BrowseName = itemId,
+                            NodeClass = "Variable",
+                            DataType = valueProperty.Value?.GetType().Name ?? "Unknown",
+                            ValorAtual = valueProperty.Value?.ToString(),
+                            Quality = "Good", // GetProperties não retorna qualidade, assumir Good
+                            Timestamp = DateTime.UtcNow
+                        };
+                        
+                        tags.Add(tag);
+                        _logger.LogInformation("✅ Tag {TagId} lida via Properties: {Value}", itemId, valueProperty.Value);
+                    }
+                    else
+                    {
+                        // Tag não encontrada - adicionar com valor nulo
+                        var tag = new OpcTagDTO
+                        {
+                            NodeId = itemId,
+                            DisplayName = itemId,
+                            BrowseName = itemId,
+                            NodeClass = "Variable",
+                            DataType = "Unknown",
+                            ValorAtual = null,
+                            Quality = "Bad",
+                            Timestamp = DateTime.UtcNow
+                        };
+                        
+                        tags.Add(tag);
+                        _logger.LogWarning("⚠️ Tag {TagId} não encontrada via Properties", itemId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ Erro ao ler tag {TagId} via Properties", itemId);
+                    
+                    // Adicionar tag com erro
+                    var errorTag = new OpcTagDTO
+                    {
+                        NodeId = itemId,
+                        DisplayName = itemId,
+                        BrowseName = itemId,
+                        NodeClass = "Variable",
+                        DataType = "Error",
+                        ValorAtual = null,
+                        Quality = "Bad",
+                        Timestamp = DateTime.UtcNow
+                    };
+                    
+                    tags.Add(errorTag);
+                }
+            }
+            
+            _logger.LogInformation("📊 Leitura alternativa concluída: {Count} tags processadas", tags.Count);
+            return tags;
+        }
     }
 }
-

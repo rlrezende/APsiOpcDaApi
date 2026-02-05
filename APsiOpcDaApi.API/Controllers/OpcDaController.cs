@@ -18,8 +18,6 @@ namespace APsiOpcDaApi.API.Controllers
     [Route("api/opcda")]
     public class OpcDaController : ControllerBase
     {
-        private static readonly Guid DefaultUnidadeId = new Guid("7f9ab23c-9860-4daa-9489-e5806b9f63d1");
-
         private readonly IOpcServerService _opcServerService;
         private readonly IOpcBrowserService _opcBrowserService;
 
@@ -87,11 +85,15 @@ namespace APsiOpcDaApi.API.Controllers
         }
 
         [HttpGet("discover-local")]
-        public async Task<IActionResult> DiscoverLocal([FromQuery] string? host = null)
+        public async Task<IActionResult> DiscoverLocal([FromQuery] Guid unidadeId, [FromQuery] string? host = null)
         {
             if (!_opcServerService.IsOpcDaSupported())
             {
                 return BadRequest(new { message = "Descoberta OPC DA só é suportada em ambiente Windows." });
+            }
+            if (unidadeId == Guid.Empty)
+            {
+                return BadRequest(new { message = "UnidadeId é obrigatório." });
             }
 
             try
@@ -133,7 +135,7 @@ namespace APsiOpcDaApi.API.Controllers
                         ClsId = clsId,
                         Descricao = serverInstance.Name,
                         Tipo = TipoOpcServer.Da,
-                        UnidadeId = DefaultUnidadeId,
+                        UnidadeId = unidadeId,
                         DiscoveryTime = DateTime.UtcNow,
                         IsOnline = true
                     };
@@ -212,4 +214,3 @@ namespace APsiOpcDaApi.API.Controllers
         }
     }
 }
-
