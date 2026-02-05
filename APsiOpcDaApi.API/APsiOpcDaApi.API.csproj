@@ -31,33 +31,7 @@
  </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="OpcNetApi">
-      <HintPath>..\Libs\Opc\OpcNetApi.dll</HintPath>
-      <Private>true</Private>
-    </Reference>
-    <Reference Include="OpcNetApi.Com">
-      <HintPath>..\Libs\Opc\OpcNetApi.Com.dll</HintPath>
-      <Private>true</Private>
-    </Reference>
-    <Reference Include="OpcComRcw">
-      <HintPath>..\Libs\Opc\OpcComRcw.dll</HintPath>
-      <Private>true</Private>
-    </Reference>
-    <Reference Include="OpcRcw.Dx">
-      <HintPath>..\Libs\Opc\OpcRcw.Dx.dll</HintPath>
-      <Private>true</Private>
-    </Reference>
-    <Reference Include="OpcRcw.Hda">
-      <HintPath>..\Libs\Opc\OpcRcw.Hda.dll</HintPath>
-      <Private>true</Private>
-    </Reference>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="..\Libs\Opc\*.dll">
-      <Link>%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <PackageReference Include="Quick.OpcNetApi.Com" Version="2.1.108" />
   </ItemGroup>
 
 </Project>

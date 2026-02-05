@@ -2,12 +2,25 @@ using APsiOpcDaApi.Application.DTOs;
 using APsiOpcDaApi.Application.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Opc.Ua;
-using Opc.Ua.Client;
-using Opc.Ua.Configuration;
 using System.Collections.Concurrent;
 using APsiOpcDaApi.Domain.Enum;
 using System.Globalization;
+using Opc.Ua;
+using Opc.Ua.Client;
+using OpcCom;
+using Opc;
+using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Linq;
+using System;
+using DaServer = Opc.Da.Server;
+using DaSubscription = Opc.Da.Subscription;
+using DaSubscriptionState = Opc.Da.SubscriptionState;
+using DaItem = Opc.Da.Item;
+using DaDataChangedEventHandler = Opc.Da.DataChangedEventHandler;
+using DaItemValueResult = Opc.Da.ItemValueResult;
+using DaURL = Opc.URL;
 
 namespace APsiOpcDaApi.Application.Services
 {
@@ -24,11 +37,11 @@ namespace APsiOpcDaApi.Application.Services
 
         // Gerenciamento de sessões e subscriptions
         private readonly ConcurrentDictionary<Guid, Session> _activeSessions = new();
-        private readonly ConcurrentDictionary<Guid, Subscription> _activeSubscriptions = new();
+        private readonly ConcurrentDictionary<Guid, Opc.Ua.Client.Subscription> _activeSubscriptions = new();
         private readonly ConcurrentDictionary<Guid, List<MonitoredItem>> _monitoredItems = new();
         private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _daGroupCancellation = new();
-        private readonly ConcurrentDictionary<Guid, Task> _daPollingTasks = new();
         private readonly ConcurrentDictionary<Guid, HashSet<string>> _daGroupItems = new();
+        private readonly ConcurrentDictionary<Guid, DaSubscriptionHandle> _daSubscriptions = new();
 
         private readonly IServiceScopeFactory _scopeFactory;
 
@@ -587,16 +600,13 @@ namespace APsiOpcDaApi.Application.Services
             {
                 if (!currentSet.SetEquals(newSet))
                 {
-                    StopOpcDaGroup(group.Id);
+                    StopOpcDaGroup(group.Id); // reseta assinatura para refletir novas tags
                     _daGroupItems[group.Id] = newSet;
                 }
                 else
                 {
-                    var existingTask = _daPollingTasks.GetValueOrDefault(group.Id);
-                    if (existingTask != null && !existingTask.IsCompleted && !existingTask.IsCanceled)
-                    {
-                        return;
-                    }
+                    if (_daSubscriptions.ContainsKey(group.Id))
+                        return; // já temos assinatura ativa com o mesmo conjunto
                 }
             }
             else
@@ -613,41 +623,94 @@ namespace APsiOpcDaApi.Application.Services
             }
 
             var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
-            var pollingTask = Task.Run(() => PollOpcDaGroupAsync(server, group, itemIds, linkedSource.Token), linkedSource.Token);
-            _daPollingTasks[group.Id] = pollingTask;
+            var subscriptionTask = Task.Run(() => StartOpcDaSubscriptionAsync(server, group, itemIds, linkedSource.Token), linkedSource.Token);
+            _daSubscriptions[group.Id] = new DaSubscriptionHandle { Task = subscriptionTask, Cancellation = linkedSource };
         }
 
-        private async Task PollOpcDaGroupAsync(OpcServerDTO server, OpcGroupDTO group, IReadOnlyList<string> itemIds, CancellationToken token)
+        private async Task StartOpcDaSubscriptionAsync(OpcServerDTO server, OpcGroupDTO group, IReadOnlyList<string> itemIds, CancellationToken token)
         {
-            _logger.LogInformation("Iniciando polling OPC DA para grupo '{Group}'", group.Name);
-
-            while (!token.IsCancellationRequested)
+            await Task.Run(() => RunOnSta(() =>
             {
+                DaSubscriptionHandle? handle = null;
                 try
                 {
-                    var values = await _opcDaClientService.ReadValuesAsync(server, itemIds);
-                    foreach (var value in values)
+                    var url = BuildDaUrl(server);
+                    var opcServer = new DaServer(new OpcCom.Factory(), null);
+
+                    Opc.ConnectData? connectData = null;
+                    if (!string.IsNullOrWhiteSpace(server.Username))
                     {
-                        await ProcessOpcDaValueAsync(value);
+                        connectData = new Opc.ConnectData(new NetworkCredential(server.Username, server.Password ?? string.Empty));
                     }
+
+                    opcServer.Connect(url, connectData);
+
+                    var state = new DaSubscriptionState
+                    {
+                        Name = $"grp-{group.Id}",
+                        Active = true,
+                        UpdateRate = Math.Max(200, group.UpdateRate),
+                        Deadband = 0,
+                        KeepAlive = Math.Max(1000, group.UpdateRate * 2),
+                        Locale = CultureInfo.InvariantCulture.Name
+                    };
+
+                    var subscription = (DaSubscription)opcServer.CreateSubscription(state);
+
+                    var items = itemIds.Select(id => new DaItem
+                    {
+                        ItemName = id,
+                        Active = true
+                    }).ToArray();
+
+                    subscription.AddItems(items);
+
+                    DaDataChangedEventHandler handler = (subHandle, requestHandle, values) =>
+                    {
+                        if (values == null) return;
+                        foreach (var v in values)
+                        {
+                            var dto = new OpcTagDTO
+                            {
+                                NodeId = v.ItemName,
+                                DisplayName = v.ItemName,
+                                BrowseName = v.ItemName,
+                                ValorAtual = FormatValue(v.Value),
+                                Timestamp = v.TimestampSpecified ? v.Timestamp : DateTime.UtcNow,
+                                Quality = v.QualitySpecified ? v.Quality.ToString() : "Unknown"
+                            };
+                            _ = ProcessOpcDaValueAsync(dto);
+                        }
+                    };
+
+                    subscription.DataChanged += handler;
+
+                    handle = new DaSubscriptionHandle
+                    {
+                        Server = opcServer,
+                        Subscription = subscription,
+                        Handler = handler,
+                        Task = Task.CompletedTask,
+                        Cancellation = CancellationTokenSource.CreateLinkedTokenSource(token)
+                    };
+
+                    _daSubscriptions[group.Id] = handle;
+
+                    // aguarda cancelamento
+                    token.WaitHandle.WaitOne();
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Erro ao ler valores OPC DA para grupo '{Group}'", group.Name);
+                    _logger.LogError(ex, "Erro ao criar assinatura OPC DA para grupo {Group}", group.Name);
                 }
-
-                try
+                finally
                 {
-                    var delay = TimeSpan.FromMilliseconds(Math.Max(200, group.UpdateRate));
-                    await Task.Delay(delay, token);
+                    if (handle != null)
+                    {
+                        DisposeDaHandle(group.Id, handle);
+                    }
                 }
-                catch (TaskCanceledException)
-                {
-                    break;
-                }
-            }
-
-            _logger.LogInformation("Encerrando polling OPC DA para grupo '{Group}'", group.Name);
+            }, token));
         }
 
         private async Task ProcessOpcDaValueAsync(OpcTagDTO opcValue)
@@ -713,19 +776,12 @@ namespace APsiOpcDaApi.Application.Services
                 }
             }
 
-            if (_daPollingTasks.TryRemove(groupId, out var task))
-            {
-                try
-                {
-                    task.Wait(TimeSpan.FromSeconds(1));
-                }
-                catch
-                {
-                    // ignorar
-                }
-            }
-
             _daGroupItems.TryRemove(groupId, out _);
+
+            if (_daSubscriptions.TryRemove(groupId, out var handle))
+            {
+                DisposeDaHandle(groupId, handle);
+            }
         }
 
 
@@ -742,7 +798,122 @@ namespace APsiOpcDaApi.Application.Services
             // Log de notificações se necessário
         }
 
-        private void OnSubscriptionStateChanged(Subscription subscription, SubscriptionStateChangedEventArgs e)
+        private static void RunOnSta(Action action, CancellationToken token)
+        {
+            Exception? captured = null;
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    captured = ex;
+                }
+            })
+            {
+                IsBackground = true
+            };
+
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+
+            while (thread.IsAlive)
+            {
+                if (token.WaitHandle.WaitOne(100))
+                {
+                    break; // ação interna bloqueia no token, só aguardamos
+                }
+            }
+
+            thread.Join();
+
+            if (captured != null)
+            {
+                throw captured;
+            }
+        }
+
+        private static string? FormatValue(object? value)
+        {
+            if (value == null) return null;
+            if (value is Array arr)
+            {
+                var list = arr.Cast<object?>().Select(v => FormatValue(v) ?? "null");
+                return "[" + string.Join(", ", list) + "]";
+            }
+            return System.Convert.ToString(value, CultureInfo.InvariantCulture);
+        }
+
+        private DaURL BuildDaUrl(OpcServerDTO server)
+        {
+            var host = !string.IsNullOrWhiteSpace(server.Host)
+                ? server.Host!
+                : (!string.IsNullOrWhiteSpace(server.Endpoint) && Uri.TryCreate(server.Endpoint, UriKind.Absolute, out var uri)
+                    ? uri.Host
+                    : server.Endpoint ?? "localhost");
+
+            var progId = !string.IsNullOrWhiteSpace(server.ProgId)
+                ? server.ProgId!
+                : (!string.IsNullOrWhiteSpace(server.Endpoint) && Uri.TryCreate(server.Endpoint, UriKind.Absolute, out var uri2)
+                    ? string.Join("/", uri2.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries))
+                    : server.Endpoint ?? throw new InvalidOperationException("ProgId não configurado"));
+
+            var builder = new System.Text.StringBuilder();
+            builder.Append("opcda://");
+            builder.Append(host.Trim());
+            builder.Append('/');
+            builder.Append(progId.Trim());
+
+            if (!string.IsNullOrWhiteSpace(server.ClsId))
+            {
+                var cls = server.ClsId.Trim();
+                if (!cls.StartsWith("{", StringComparison.Ordinal)) cls = "{" + cls;
+                if (!cls.EndsWith("}", StringComparison.Ordinal)) cls += "}";
+                builder.Append('/');
+                builder.Append(cls);
+            }
+
+            return new DaURL(builder.ToString());
+        }
+
+        private void DisposeDaHandle(Guid groupId, DaSubscriptionHandle handle)
+        {
+            try
+            {
+                if (handle.Subscription != null && handle.Handler != null)
+                {
+                    handle.Subscription.DataChanged -= handle.Handler;
+                }
+            }
+            catch { /* ignore */ }
+
+            try { handle.Subscription?.Dispose(); } catch { }
+            try
+            {
+                if (handle.Server != null)
+                {
+                    handle.Server.Disconnect();
+                    handle.Server.Dispose();
+                }
+            }
+            catch { /* ignore */ }
+
+            try { handle.Cancellation?.Cancel(); } catch { }
+            try { handle.Cancellation?.Dispose(); } catch { }
+        }
+
+        private class DaSubscriptionHandle
+        {
+            public DaServer? Server { get; init; }
+            public DaSubscription? Subscription { get; init; }
+            public DaDataChangedEventHandler? Handler { get; init; }
+            public Task? Task { get; init; }
+            public CancellationTokenSource? Cancellation { get; init; }
+        }
+
+        private void OnSubscriptionStateChanged(Opc.Ua.Client.Subscription subscription, SubscriptionStateChangedEventArgs e)
         {
             _logger.LogInformation($"Estado da subscription {subscription.DisplayName} mudou para {e.Status}");
         }
@@ -791,33 +962,16 @@ namespace APsiOpcDaApi.Application.Services
 
             foreach (var cts in _daGroupCancellation.Values)
             {
-                try
-                {
-                    cts.Cancel();
-                }
-                catch
-                {
-                    // ignorar
-                }
-                finally
-                {
-                    cts.Dispose();
-                }
+                try { cts.Cancel(); } catch { }
+                finally { cts.Dispose(); }
             }
             _daGroupCancellation.Clear();
 
-            foreach (var task in _daPollingTasks.Values)
+            foreach (var kvp in _daSubscriptions)
             {
-                try
-                {
-                    await task;
-                }
-                catch
-                {
-                    // ignorar
-                }
+                DisposeDaHandle(kvp.Key, kvp.Value);
             }
-            _daPollingTasks.Clear();
+            _daSubscriptions.Clear();
             _daGroupItems.Clear();
 
             // Fechar todas as sessões
