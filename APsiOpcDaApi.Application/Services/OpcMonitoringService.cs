@@ -42,6 +42,9 @@ namespace APsiOpcDaApi.Application.Services
         private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _daGroupCancellation = new();
         private readonly ConcurrentDictionary<Guid, HashSet<string>> _daGroupItems = new();
         private readonly ConcurrentDictionary<Guid, DaSubscriptionHandle> _daSubscriptions = new();
+        private readonly ConcurrentDictionary<Guid, Task> _daReplayTasks = new();
+        private readonly ConcurrentDictionary<Guid, DateTime> _lastOpcEventAt = new();
+        private readonly ConcurrentDictionary<Guid, DateTime> _lastReplaySentAt = new();
 
         private readonly IServiceScopeFactory _scopeFactory;
 
@@ -587,11 +590,21 @@ namespace APsiOpcDaApi.Application.Services
             }
 
             var tags = await _groupService.GetGroupTagsAsync(group.Id);
-            var itemIds = tags
+            var monitoredTags = tags
                 .Where(t => t.Monitora && !string.IsNullOrWhiteSpace(t.NodeIdOpc))
+                .ToList();
+
+            var itemIds = monitoredTags
                 .Select(t => t.NodeIdOpc!)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+
+            var itemTagMap = monitoredTags
+                .GroupBy(t => t.NodeIdOpc!, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (IReadOnlyList<Guid>)g.Select(t => t.Id).ToList(),
+                    StringComparer.OrdinalIgnoreCase);
 
             if (itemIds.Count == 0)
             {
@@ -610,7 +623,10 @@ namespace APsiOpcDaApi.Application.Services
                 else
                 {
                     if (_daSubscriptions.ContainsKey(group.Id))
+                    {
+                        EnsureReplayTaskRunning(group, cancellationToken);
                         return; // já temos assinatura ativa com o mesmo conjunto
+                    }
                 }
             }
             else
@@ -627,11 +643,112 @@ namespace APsiOpcDaApi.Application.Services
             }
 
             var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
-            var subscriptionTask = Task.Run(() => StartOpcDaSubscriptionAsync(server, group, itemIds, linkedSource.Token), linkedSource.Token);
+            var subscriptionTask = Task.Run(() => StartOpcDaSubscriptionAsync(server, group, itemIds, itemTagMap, linkedSource.Token), linkedSource.Token);
             _daSubscriptions[group.Id] = new DaSubscriptionHandle { Task = subscriptionTask, Cancellation = linkedSource };
+            EnsureReplayTaskRunning(group, linkedSource.Token);
         }
 
-        private async Task StartOpcDaSubscriptionAsync(OpcServerDTO server, OpcGroupDTO group, IReadOnlyList<string> itemIds, CancellationToken token)
+        private void EnsureReplayTaskRunning(OpcGroupDTO group, CancellationToken token)
+        {
+            if (_daReplayTasks.TryGetValue(group.Id, out var existingTask) && !existingTask.IsCompleted && !existingTask.IsCanceled)
+            {
+                return;
+            }
+
+            var replayTask = Task.Run(() => ReplayLastValuesForGroupAsync(group, token), token);
+            _daReplayTasks[group.Id] = replayTask;
+        }
+
+        private async Task ReplayLastValuesForGroupAsync(OpcGroupDTO group, CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    var now = DateTime.UtcNow;
+                    var updateRateMs = Math.Max(200, group.UpdateRate);
+                    var staleThreshold = TimeSpan.FromMilliseconds(updateRateMs);
+
+                    var tags = await _groupService.GetGroupTagsAsync(group.Id);
+                    var monitoredTags = tags.Where(t => t.Monitora && t.ValorAtual.HasValue).ToList();
+
+                    if (monitoredTags.Count > 0)
+                    {
+                        using var scope = _scopeFactory.CreateScope();
+                        var notificador = scope.ServiceProvider.GetRequiredService<INotificadorSimulacao>();
+                        var leituraService = scope.ServiceProvider.GetRequiredService<ILeituraService>();
+
+                        foreach (var tag in monitoredTags)
+                        {
+                            if (!tag.ValorAtual.HasValue)
+                            {
+                                continue;
+                            }
+
+                            var lastEventAt = _lastOpcEventAt.TryGetValue(tag.Id, out var evtAt)
+                                ? evtAt
+                                : DateTime.MinValue;
+
+                            var semEventoRecente = (now - lastEventAt) >= staleThreshold;
+                            if (!semEventoRecente)
+                            {
+                                continue;
+                            }
+
+                            var lastReplayAt = _lastReplaySentAt.TryGetValue(tag.Id, out var repAt)
+                                ? repAt
+                                : DateTime.MinValue;
+
+                            if ((now - lastReplayAt) < staleThreshold)
+                            {
+                                continue;
+                            }
+
+                            // Revalida imediatamente antes de persistir para evitar corrida com evento OPC real.
+                            if (_lastOpcEventAt.TryGetValue(tag.Id, out var latestEventAt) && (DateTime.UtcNow - latestEventAt) < staleThreshold)
+                            {
+                                continue;
+                            }
+
+                            await leituraService.AddAsync(new LeituraDTO
+                            {
+                                TagId = tag.Id,
+                                Valor = tag.ValorAtual.Value,
+                                DataLeitura = now
+                            });
+
+                            await notificador.NotificarAtualizacaoTagAsync(tag.Id, tag.ValorAtual.Value, now);
+                            _lastReplaySentAt[tag.Id] = now;
+                        }
+                    }
+
+                    await Task.Delay(updateRateMs, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Erro ao reenviar último valor do grupo OPC DA {Group}", group.Name);
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(1), token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
+        private async Task StartOpcDaSubscriptionAsync(
+            OpcServerDTO server,
+            OpcGroupDTO group,
+            IReadOnlyList<string> itemIds,
+            IReadOnlyDictionary<string, IReadOnlyList<Guid>> itemTagMap,
+            CancellationToken token)
         {
             await Task.Run(() => RunOnSta(() =>
             {
@@ -654,8 +771,8 @@ namespace APsiOpcDaApi.Application.Services
                         Name = $"grp-{group.Id}",
                         Active = true,
                         UpdateRate = Math.Max(200, group.UpdateRate),
-                        Deadband = 0,
-                        KeepAlive = Math.Max(1000, group.UpdateRate * 2),
+                        Deadband = Math.Max(0, Math.Min(100, group.Deadband)),
+                        KeepAlive = Math.Max(1000, group.UpdateRate * Math.Max(1, group.KeepAliveCount)),
                         Locale = CultureInfo.InvariantCulture.Name
                     };
 
@@ -674,6 +791,11 @@ namespace APsiOpcDaApi.Application.Services
                         if (values == null) return;
                         foreach (var v in values)
                         {
+                            if (string.IsNullOrWhiteSpace(v.ItemName))
+                            {
+                                continue;
+                            }
+
                             var dto = new OpcTagDTO
                             {
                                 NodeId = v.ItemName,
@@ -683,11 +805,31 @@ namespace APsiOpcDaApi.Application.Services
                                 Timestamp = v.TimestampSpecified ? v.Timestamp : DateTime.UtcNow,
                                 Quality = v.QualitySpecified ? v.Quality.ToString() : "Unknown"
                             };
-                            _ = ProcessOpcDaValueAsync(dto);
+
+                            if (!itemTagMap.TryGetValue(v.ItemName, out var tagIds) || tagIds.Count == 0)
+                            {
+                                _logger.LogDebug("Item OPC DA '{ItemName}' recebido sem mapeamento de tag no grupo {GroupName}", v.ItemName, group.Name);
+                                continue;
+                            }
+
+                            foreach (var tagId in tagIds)
+                            {
+                                _ = ProcessOpcDaValueAsync(tagId, dto);
+                            }
                         }
                     };
 
                     subscription.DataChanged += handler;
+
+                    try
+                    {
+                        // força envio inicial dos valores atuais sem polling manual
+                        subscription.Refresh();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Não foi possível solicitar refresh inicial da subscription OPC DA para grupo {Group}", group.Name);
+                    }
 
                     handle = new DaSubscriptionHandle
                     {
@@ -717,7 +859,7 @@ namespace APsiOpcDaApi.Application.Services
             }, token));
         }
 
-        private async Task ProcessOpcDaValueAsync(OpcTagDTO opcValue)
+        private async Task ProcessOpcDaValueAsync(Guid tagId, OpcTagDTO opcValue)
         {
             if (string.IsNullOrWhiteSpace(opcValue.NodeId) || string.IsNullOrWhiteSpace(opcValue.ValorAtual))
             {
@@ -736,8 +878,13 @@ namespace APsiOpcDaApi.Application.Services
 
             try
             {
-                var tag = await tagService.GetByNodeIdOpcAsync(opcValue.NodeId);
+                var tag = await tagService.GetByIdAsync(tagId);
                 if (tag == null || !tag.Monitora)
+                {
+                    return;
+                }
+
+                if (!string.Equals(tag.NodeIdOpc, opcValue.NodeId, StringComparison.OrdinalIgnoreCase))
                 {
                     return;
                 }
@@ -746,6 +893,9 @@ namespace APsiOpcDaApi.Application.Services
                 await tagService.UpdateAsync(tag);
 
                 var timestamp = opcValue.Timestamp ?? DateTime.UtcNow;
+                var eventReceivedAt = DateTime.UtcNow;
+                _lastOpcEventAt[tag.Id] = eventReceivedAt;
+                _lastReplaySentAt[tag.Id] = eventReceivedAt;
 
                 await leituraService.AddAsync(new LeituraDTO
                 {
@@ -786,6 +936,18 @@ namespace APsiOpcDaApi.Application.Services
             {
                 DisposeDaHandle(groupId, handle);
             }
+
+            if (_daReplayTasks.TryRemove(groupId, out var replayTask))
+            {
+                try
+                {
+                    replayTask.Wait(TimeSpan.FromSeconds(1));
+                }
+                catch
+                {
+                    // ignorar
+                }
+            }
         }
 
 
@@ -820,7 +982,10 @@ namespace APsiOpcDaApi.Application.Services
                 IsBackground = true
             };
 
-            thread.SetApartmentState(ApartmentState.STA);
+            if (OperatingSystem.IsWindows())
+            {
+                thread.SetApartmentState(ApartmentState.STA);
+            }
             thread.Start();
 
             while (thread.IsAlive)
@@ -976,7 +1141,16 @@ namespace APsiOpcDaApi.Application.Services
                 DisposeDaHandle(kvp.Key, kvp.Value);
             }
             _daSubscriptions.Clear();
+
+            foreach (var task in _daReplayTasks.Values)
+            {
+                try { await task; } catch { }
+            }
+            _daReplayTasks.Clear();
+
             _daGroupItems.Clear();
+            _lastOpcEventAt.Clear();
+            _lastReplaySentAt.Clear();
 
             // Fechar todas as sessões
             foreach (var session in _activeSessions.Values)
