@@ -45,13 +45,29 @@ namespace APsiOpcDaApi.Application.Services
         private readonly ConcurrentDictionary<Guid, Task> _daReplayTasks = new();
         private readonly ConcurrentDictionary<Guid, DateTime> _lastOpcEventAt = new();
         private readonly ConcurrentDictionary<Guid, DateTime> _lastReplaySentAt = new();
+        private readonly ConcurrentDictionary<Guid, DateTime> _daGroupLastEventAt = new();
 
         private readonly IServiceScopeFactory _scopeFactory;
-
+                    if (_daSubscriptions.ContainsKey(group.Id))
         
-        private ApplicationConfiguration? _applicationConfiguration;
+                        if (IsOpcDaSubscriptionStale(group.Id, group.UpdateRate))
+                        {
+                            _logger.LogWarning(
+                                "Assinatura OPC DA do grupo {Group} está sem eventos há muito tempo. Recriando conexão/subscription.",
+                                group.Name);
+                            StopOpcDaGroup(group.Id);
+                        }
+                        else
+                        {
+                            EnsureReplayTaskRunning(group, cancellationToken);
+                            return; // já temos assinatura ativa com o mesmo conjunto
+                        }
+                    }
 
-        private readonly HashSet<Guid> _managedSubscriptionGroupIds = new();
+                    if (_daSubscriptions.ContainsKey(group.Id))
+        private ApplicationConfiguration? _applicationConfiguration;
+                        // segurança adicional para evitar recriação duplicada na mesma iteração
+                        return;
 
         private bool _disposed = false;
 
@@ -659,6 +675,17 @@ namespace APsiOpcDaApi.Application.Services
             _daReplayTasks[group.Id] = replayTask;
         }
 
+        private bool IsOpcDaSubscriptionStale(Guid groupId, int updateRate)
+        {
+            if (!_daGroupLastEventAt.TryGetValue(groupId, out var lastEventAt))
+            {
+                return false;
+            }
+
+            var thresholdMs = Math.Max(15000, Math.Max(200, updateRate) * 6);
+            return (DateTime.UtcNow - lastEventAt) > TimeSpan.FromMilliseconds(thresholdMs);
+        }
+
         private async Task ReplayLastValuesForGroupAsync(OpcGroupDTO group, CancellationToken token)
         {
             while (!token.IsCancellationRequested)
@@ -789,6 +816,9 @@ namespace APsiOpcDaApi.Application.Services
                     DaDataChangedEventHandler handler = (subHandle, requestHandle, values) =>
                     {
                         if (values == null) return;
+
+                        _daGroupLastEventAt[group.Id] = DateTime.UtcNow;
+
                         foreach (var v in values)
                         {
                             if (string.IsNullOrWhiteSpace(v.ItemName))
@@ -825,6 +855,7 @@ namespace APsiOpcDaApi.Application.Services
                     {
                         // força envio inicial dos valores atuais sem polling manual
                         subscription.Refresh();
+                        _daGroupLastEventAt[group.Id] = DateTime.UtcNow;
                     }
                     catch (Exception ex)
                     {
@@ -931,6 +962,7 @@ namespace APsiOpcDaApi.Application.Services
             }
 
             _daGroupItems.TryRemove(groupId, out _);
+            _daGroupLastEventAt.TryRemove(groupId, out _);
 
             if (_daSubscriptions.TryRemove(groupId, out var handle))
             {
@@ -1149,6 +1181,7 @@ namespace APsiOpcDaApi.Application.Services
             _daReplayTasks.Clear();
 
             _daGroupItems.Clear();
+            _daGroupLastEventAt.Clear();
             _lastOpcEventAt.Clear();
             _lastReplaySentAt.Clear();
 
