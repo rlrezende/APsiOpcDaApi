@@ -48,26 +48,8 @@ namespace APsiOpcDaApi.Application.Services
         private readonly ConcurrentDictionary<Guid, DateTime> _daGroupLastEventAt = new();
 
         private readonly IServiceScopeFactory _scopeFactory;
-                    if (_daSubscriptions.ContainsKey(group.Id))
-        
-                        if (IsOpcDaSubscriptionStale(group.Id, group.UpdateRate))
-                        {
-                            _logger.LogWarning(
-                                "Assinatura OPC DA do grupo {Group} está sem eventos há muito tempo. Recriando conexão/subscription.",
-                                group.Name);
-                            StopOpcDaGroup(group.Id);
-                        }
-                        else
-                        {
-                            EnsureReplayTaskRunning(group, cancellationToken);
-                            return; // já temos assinatura ativa com o mesmo conjunto
-                        }
-                    }
-
-                    if (_daSubscriptions.ContainsKey(group.Id))
         private ApplicationConfiguration? _applicationConfiguration;
-                        // segurança adicional para evitar recriação duplicada na mesma iteração
-                        return;
+        private readonly HashSet<Guid> _managedSubscriptionGroupIds = new();
 
         private bool _disposed = false;
 
@@ -640,8 +622,18 @@ namespace APsiOpcDaApi.Application.Services
                 {
                     if (_daSubscriptions.ContainsKey(group.Id))
                     {
-                        EnsureReplayTaskRunning(group, cancellationToken);
-                        return; // já temos assinatura ativa com o mesmo conjunto
+                        if (IsOpcDaSubscriptionStale(group.Id, group.UpdateRate))
+                        {
+                            _logger.LogWarning(
+                                "Assinatura OPC DA do grupo {Group} está sem eventos há muito tempo. Recriando conexão/subscription.",
+                                group.Name);
+                            StopOpcDaGroup(group.Id);
+                        }
+                        else
+                        {
+                            EnsureReplayTaskRunning(group, cancellationToken);
+                            return; // já temos assinatura ativa com o mesmo conjunto
+                        }
                     }
                 }
             }
@@ -798,7 +790,7 @@ namespace APsiOpcDaApi.Application.Services
                         Name = $"grp-{group.Id}",
                         Active = true,
                         UpdateRate = Math.Max(200, group.UpdateRate),
-                        Deadband = Math.Max(0, Math.Min(100, group.Deadband)),
+                        Deadband = (float)Math.Max(0d, Math.Min(100d, group.Deadband)),
                         KeepAlive = Math.Max(1000, group.UpdateRate * Math.Max(1, group.KeepAliveCount)),
                         Locale = CultureInfo.InvariantCulture.Name
                     };
