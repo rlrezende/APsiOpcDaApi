@@ -53,11 +53,6 @@ namespace APsiOpcDaApi.Infrastructure.Configurations
                      .HasForeignKey(g => g.ServerId)
                      .OnDelete(DeleteBehavior.Cascade);
 
-              builder.HasMany(g => g.Tags)
-                     .WithOne()
-                     .HasForeignKey("GroupId")
-                     .OnDelete(DeleteBehavior.SetNull);
-
               builder.HasIndex(g => g.ServerId)
                      .HasDatabaseName("IX_OpcGroup_ServerId");
               }
