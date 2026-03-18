@@ -103,10 +103,25 @@ app.UseRouting();
 
 app.UseCors("CorsComAutenticacao"); // 👈 deve estar entre routing e autenticação
 
-if (app.Environment.IsDevelopment())
+var enableSwagger = app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled");
+if (enableSwagger)
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "APsiC OPC DA API v1");
+        c.DisplayRequestDuration();
+        c.EnablePersistAuthorization();
+        c.InjectJavascript("/swagger-default-auth.js");
+    });
+
+    app.MapGet("/dev/swagger-default-token", () =>
+    {
+        var token = Environment.GetEnvironmentVariable("SWAGGER_DEFAULT_BEARER_TOKEN");
+        return string.IsNullOrWhiteSpace(token)
+            ? Results.NoContent()
+            : Results.Ok(new { token });
+    }).ExcludeFromDescription();
 }
 else
 {

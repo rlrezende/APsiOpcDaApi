@@ -7,7 +7,6 @@
 
 # IDE / user-specific
 .vs/
-.vscode/
 .idea/
 *.suo
 *.user
