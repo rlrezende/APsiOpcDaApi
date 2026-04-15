@@ -1,0 +1,6 @@
+{
+"terminal.integrated.env.windows": {
+  "OPC_DLL_HINT_PATH": "E:\\APsiC_systems\\Projects\\APsiControl\\APsiOpcDaApi\\Libs\\Opc",
+  "SOFTING_OPC_SDK_DIR": "E:\\...\\Softing..."
+}
+}
