@@ -26,11 +26,11 @@ namespace APsiOpcDaApi.Infrastructure.Configurations
             builder.Property(t => t.idOld)
                    .IsRequired();
 
-            builder.Property(t => t.UnidadeId)
+            builder.Property(t => t.ModuloId)
                    .IsRequired();
 
-            builder.HasIndex(t => t.UnidadeId)
-                   .HasDatabaseName("IX_Tag_UnidadeId");
+            builder.HasIndex(t => t.ModuloId)
+                   .HasDatabaseName("IX_Tag_ModuloId");
 
             builder.Property(t => t.Monitora)
                    .IsRequired()

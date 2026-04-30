@@ -11,8 +11,8 @@ namespace APsiOpcDaApi.Application.DTOs
 
         public int idOld { get; set; }
 
-        // Campo para associar a unidade
-        public Guid UnidadeId { get; set; }
+        // Campo para associar o módulo
+        public Guid ModuloId { get; set; }
 
         // Opcional: identificador interno
         public Guid? NodeId { get; set; }

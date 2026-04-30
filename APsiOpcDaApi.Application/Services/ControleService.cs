@@ -370,11 +370,11 @@ namespace APsiOpcDaApi.Application.Services
                     {
                         Nome = nome,
                         Descricao = descricao,
-                        UnidadeId = unidadeId
+                        ModuloId = unidadeId
                     };
 
                     // Verifica duplicidade no banco antes de inserir
-                    var controleExistente = await GetByConditionAsync(c => c.Nome == nome && c.UnidadeId == unidadeId);
+                    var controleExistente = await GetByConditionAsync(c => c.Nome == nome && c.ModuloId == unidadeId);
                     if (controleExistente != null)
                     {
                         Console.WriteLine($"[Aviso] Linha {i}: O controle '{nome}' já existe. Registro ignorado.");

@@ -9,7 +9,7 @@ namespace APsiOpcDaApi.Application.DTOs
         public Guid Id { get; set; }
         public string Nome { get; set; } = string.Empty;
         public string Endpoint { get; set; } = string.Empty;
-        public Guid UnidadeId { get; set; }
+        public Guid ModuloId { get; set; }
         public TipoOpcServer Tipo { get; set; }
         public string? Descricao { get; set; }
         public string? SecurityPolicy { get; set; }

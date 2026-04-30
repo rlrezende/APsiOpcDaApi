@@ -23,13 +23,13 @@ namespace APsiOpcDaApi.Infrastructure.Configurations
                    .IsRequired()
                    .HasMaxLength(255);
 
-            // Configuração da propriedade UnidadeId como chave estrangeira, sem referência de navegação
-            builder.Property(c => c.UnidadeId)
+            // Configuração da propriedade ModuloId como chave estrangeira, sem referência de navegação
+            builder.Property(c => c.ModuloId)
                    .IsRequired();
 
-            // Caso você queira definir um índice para UnidadeId
-            builder.HasIndex(c => c.UnidadeId)
-                   .HasDatabaseName("IX_Controle_UnidadeId");
+            // Índice em ModuloId para melhorar desempenho de consultas
+            builder.HasIndex(c => c.ModuloId)
+                   .HasDatabaseName("IX_Controle_ModuloId");
         }
     }
 }

@@ -7,7 +7,7 @@ namespace APsiOpcDaApi.Application.DTOs
     {
         public Guid TagId { get; set; }
         public string TagName { get; set; } = string.Empty;
-        public Guid UnidadeId { get; set; }
+        public Guid ModuloId { get; set; }
         public DateTime Start { get; set; }
         public DateTime End { get; set; }
         public int Samples { get; set; }

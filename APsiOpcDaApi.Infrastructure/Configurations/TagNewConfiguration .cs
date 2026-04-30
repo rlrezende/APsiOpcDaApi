@@ -27,13 +27,13 @@ namespace APsiOpcDaApi.Infrastructure.Configurations
                    .IsRequired()
                    .HasMaxLength(255);
 
-            // Configuração da propriedade UnidadeId (sem referência direta à Unidade)
-            builder.Property(t => t.UnidadeId)
+            // Configuração da propriedade ModuloId (sem referência direta ao Módulo)
+            builder.Property(t => t.ModuloId)
                    .IsRequired();
 
-            // Opcional: índice em UnidadeId para melhorar desempenho de consultas
-            builder.HasIndex(t => t.UnidadeId)
-                   .HasDatabaseName("IX_Tag_UnidadeId");
+            // Índice em ModuloId para melhorar desempenho de consultas
+            builder.HasIndex(t => t.ModuloId)
+                   .HasDatabaseName("IX_Tag_ModuloId");
 
             // Relacionamento com Leituras (Uma Tag pode ter muitas Leituras)
             builder.HasMany(t => t.Leituras)

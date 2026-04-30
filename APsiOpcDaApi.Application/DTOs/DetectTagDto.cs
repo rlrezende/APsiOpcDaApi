@@ -5,7 +5,7 @@ namespace APsiOpcDaApi.Application.DTOs
     public class DetectTagDto
     {
         public Guid Id { get; set; }
-        public Guid UnidadeId { get; set; }
+        public Guid ModuloId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public Guid? GroupId { get; set; }

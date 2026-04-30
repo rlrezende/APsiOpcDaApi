@@ -52,7 +52,7 @@ namespace APsiOpcDaApi.Application.Services
                 {
                     Nome = nome,
                     Descricao = descricao,
-                    UnidadeId = unidadeId,
+                    ModuloId = unidadeId,
                     idOld = idOld
                 };
 

@@ -58,7 +58,7 @@ namespace APsiOpcDaApi.Application.Services
                 Description = tag.Descricao,
                 GroupId = tag.GroupId,
                 GroupName = tag.Group?.Name ?? string.Empty,
-                UnidadeId = tag.UnidadeId,
+                ModuloId = tag.ModuloId,
                 InstrumentClass = ResolveInstrumentClass(tag.Nome),
                 Isa = ResolveIsa(tag.Nome),
                 Area = tag.Group?.Description ?? string.Empty
@@ -231,7 +231,7 @@ namespace APsiOpcDaApi.Application.Services
             var endUtc = end.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(end, DateTimeKind.Utc) : end.ToUniversalTime();
 
             var readings = await _leituraService.ObterLeiturasPorPeriodoETagsAsync(
-                tag.UnidadeId,
+                tag.ModuloId,
                 startUtc,
                 endUtc,
                 new List<Guid> { tagId });
@@ -257,7 +257,7 @@ namespace APsiOpcDaApi.Application.Services
             {
                 TagId = tag.Id,
                 TagName = tag.Nome,
-                UnidadeId = tag.UnidadeId,
+                ModuloId = tag.ModuloId,
                 Start = startUtc,
                 End = endUtc,
                 Samples = orderedReadings.Count,

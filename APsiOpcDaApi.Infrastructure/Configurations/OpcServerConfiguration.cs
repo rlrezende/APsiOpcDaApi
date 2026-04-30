@@ -20,7 +20,7 @@ namespace APsiOpcDaApi.Infrastructure.Configurations
                    .IsRequired()
                    .HasMaxLength(255);
 
-            builder.Property(s => s.UnidadeId)
+            builder.Property(s => s.ModuloId)
                    .IsRequired();
 
             builder.Property(s => s.Descricao)

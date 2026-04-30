@@ -6,8 +6,8 @@ namespace APsiOpcDaApi.Domain.Entities
         public string Nome { get; set; } = string.Empty;
         public string Descricao { get; set; } = string.Empty;
 
-        // FK para Unidade, mantendo apenas o ID
-        public Guid UnidadeId { get; set; }
+        // FK para Modulo, mantendo apenas o ID
+        public Guid ModuloId { get; set; }
 
         protected Controle() { }
     }

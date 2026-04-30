@@ -27,7 +27,7 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
                 Instant dataFim = Instant.FromDateTimeUtc(dataFimUtc); 
                 return await (from leitura in _dbSet.AsNoTracking()
                     join tag in _context.Tag.AsNoTracking() on leitura.TagId equals tag.Id
-                    where tag.UnidadeId == unidadeId &&
+                    where tag.ModuloId == unidadeId &&
                             leitura.DataLeitura >= dataInicio &&
                             leitura.DataLeitura <= dataFim &&
                             (tagIds == null || !tagIds.Any() || tagIds.Contains(leitura.TagId))
@@ -41,7 +41,7 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
                         {
                             Id = tag.Id,
                             Nome = tag.Nome,
-                            UnidadeId = tag.UnidadeId,
+                            ModuloId = tag.ModuloId,
                             Descricao = tag.Descricao
                         }
                     })
@@ -68,7 +68,7 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
         return await _dbSet
             .AsNoTracking()
             .Where(l => tagIds.Contains(l.TagId) &&
-                        l.Tag.UnidadeId == unidadeId &&
+                        l.Tag.ModuloId == unidadeId &&
                         l.DataLeitura >= dataInicio &&
                         l.DataLeitura <= dataFim)
             .OrderBy(l => l.DataLeitura)

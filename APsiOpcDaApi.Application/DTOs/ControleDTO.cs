@@ -9,9 +9,9 @@ namespace APsiOpcDaApi.Application.DTOs
         public string Nome { get; set; } = string.Empty;  // Nome do controle
         public string Descricao { get; set; } = string.Empty;  // Descrição do controle
 
-        // Relacionamento com Unidade
-        public Guid UnidadeId { get; set; }
-        public string UnidadeNome { get; set; } = string.Empty;  // Nome da Unidade associada, se necessário
+        // Relacionamento com Módulo
+        public Guid ModuloId { get; set; }
+        public string ModuloNome { get; set; } = string.Empty;  // Nome do Módulo associado, se necessário
     }
 }
 

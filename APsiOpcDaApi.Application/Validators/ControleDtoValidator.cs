@@ -17,14 +17,14 @@ namespace APsiOpcDaApi.Application.Validators
                 .MaximumLength(250).WithMessage("A descrição do controle não pode ter mais de 250 caracteres.")
                 .When(x => !string.IsNullOrEmpty(x.Descricao));
 
-            // Validação para UnidadeId (obrigatório)
-            RuleFor(x => x.UnidadeId)
-                .NotEmpty().WithMessage("O identificador da unidade é obrigatório.");
+            // Validação para ModuloId (obrigatório)
+            RuleFor(x => x.ModuloId)
+                .NotEmpty().WithMessage("O identificador do módulo é obrigatório.");
 
-            // Validação para UnidadeNome (opcional, mas com limite)
-            RuleFor(x => x.UnidadeNome)
-                .MaximumLength(100).WithMessage("O nome da unidade não pode ter mais de 100 caracteres.")
-                .When(x => !string.IsNullOrEmpty(x.UnidadeNome));
+            // Validação para ModuloNome (opcional, mas com limite)
+            RuleFor(x => x.ModuloNome)
+                .MaximumLength(100).WithMessage("O nome do módulo não pode ter mais de 100 caracteres.")
+                .When(x => !string.IsNullOrEmpty(x.ModuloNome));
         }
     }
 }

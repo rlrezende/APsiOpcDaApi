@@ -15,7 +15,7 @@ namespace APsiOpcDaApi.Domain.Entities
         /// </summary>
         public string Endpoint { get; set; } = string.Empty;
 
-        public Guid UnidadeId { get; set; }
+        public Guid ModuloId { get; set; }
         public string? Descricao { get; set; }
 
         /// <summary>

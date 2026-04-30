@@ -8,7 +8,7 @@ namespace APsiOpcDaApi.Domain.Entities
 
         public int idOld { get; set; }
 
-        public Guid UnidadeId { get; set; }
+        public Guid ModuloId { get; set; }
 
         public Guid? NodeId { get; set; }
         public virtual OpcNode? Node { get; set; }
