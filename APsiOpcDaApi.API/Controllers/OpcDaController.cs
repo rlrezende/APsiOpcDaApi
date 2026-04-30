@@ -135,7 +135,7 @@ namespace APsiOpcDaApi.API.Controllers
                         ClsId = clsId,
                         Descricao = serverInstance.Name,
                         Tipo = TipoOpcServer.Da,
-                        UnidadeId = unidadeId,
+                        ModuloId = unidadeId,
                         DiscoveryTime = DateTime.UtcNow,
                         IsOnline = true
                     };

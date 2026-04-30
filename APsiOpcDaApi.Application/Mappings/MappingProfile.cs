@@ -12,8 +12,7 @@ namespace APsiOpcDaApi.Application.Mappings
         public MappingProfile()
         {
             // Mapeamento de Controle para ControleDTO
-            CreateMap<Controle, ControleDTO>()
-                .ForMember(dto => dto.UnidadeNome, opt => opt.Ignore());
+            CreateMap<Controle, ControleDTO>();
 
             // Mapeamento de ControleDTO para Controle
             CreateMap<ControleDTO, Controle>();
