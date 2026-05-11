@@ -3,6 +3,7 @@ using APsiOpcDaApi.API.Extensions;
 using APsiOpcDaApi.API.Logging;
 using FluentValidation.AspNetCore;
 using System.IO;
+using System.Data.Common;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
@@ -86,6 +87,28 @@ builder.Services.AddFluentValidationAutoValidation()
                 .AddFluentValidationClientsideAdapters();
 
 var app = builder.Build();
+
+var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+var effectiveConnection = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    ?? string.Empty;
+
+if (!string.IsNullOrWhiteSpace(effectiveConnection))
+{
+    var csBuilder = new DbConnectionStringBuilder { ConnectionString = effectiveConnection };
+    var host = csBuilder.TryGetValue("Host", out var hostObj) ? hostObj?.ToString() : "(n/a)";
+    var port = csBuilder.TryGetValue("Port", out var portObj) ? portObj?.ToString() : "(n/a)";
+    var database = csBuilder.TryGetValue("Database", out var dbObj) ? dbObj?.ToString() : "(n/a)";
+    var username = csBuilder.TryGetValue("Username", out var userObj) ? userObj?.ToString() : "(n/a)";
+
+    startupLogger.LogInformation(
+        "DB efetivo APsiOpcDaApi -> Host={Host}; Port={Port}; Database={Database}; Username={Username}",
+        host, port, database, username);
+}
+else
+{
+    startupLogger.LogWarning("DB efetivo APsiOpcDaApi -> ConnectionString DefaultConnection não encontrada.");
+}
 
 // Remove limite de tamanho por request
 app.Use(async (context, next) =>

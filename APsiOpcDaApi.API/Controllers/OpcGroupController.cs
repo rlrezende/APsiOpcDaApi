@@ -3,6 +3,8 @@ using APsiOpcDaApi.Application.Interfaces;
 using APsiOpcDaApi.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Linq;
 
 namespace APsiOpcDaApi.API.Controllers
 {
@@ -12,30 +14,61 @@ namespace APsiOpcDaApi.API.Controllers
     public class OpcGroupController : ControllerBase
     {
         private readonly IOpcGroupService _groupService;
+        private readonly IOpcServerService _serverService;
 
-        public OpcGroupController(IOpcGroupService groupService)
+        public OpcGroupController(IOpcGroupService groupService, IOpcServerService serverService)
         {
             _groupService = groupService;
+            _serverService = serverService;
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAllGroups()
+        public async Task<IActionResult> GetAllGroups([FromQuery] Guid? unidadeId = null)
         {
             var groups = await _groupService.GetAllAsync();
+            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
+            {
+                var serverIds = (await _serverService.GetAllAsync())
+                    .Where(s => s.ModuloId == unidadeId.Value)
+                    .Select(s => s.Id)
+                    .ToHashSet();
+
+                groups = groups.Where(g => serverIds.Contains(g.ServerId));
+            }
+
             return Ok(new { groups });
         }
 
         [HttpGet("server/{serverId}")]
-        public async Task<IActionResult> GetGroupsByServer(Guid serverId)
+        public async Task<IActionResult> GetGroupsByServer(Guid serverId, [FromQuery] Guid? unidadeId = null)
         {
+            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
+            {
+                var server = await _serverService.GetByIdAsync(serverId);
+                if (server == null || server.ModuloId != unidadeId.Value)
+                {
+                    return Ok(Enumerable.Empty<OpcGroupDTO>());
+                }
+            }
+
             var groups = await _groupService.GetGroupsByServerIdAsync(serverId);
             return Ok(groups);
         }
 
         [HttpGet("active")]
-        public async Task<IActionResult> GetActiveGroups()
+        public async Task<IActionResult> GetActiveGroups([FromQuery] Guid? unidadeId = null)
         {
             var groups = await _groupService.GetActiveGroupsAsync();
+            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
+            {
+                var serverIds = (await _serverService.GetAllAsync())
+                    .Where(s => s.ModuloId == unidadeId.Value)
+                    .Select(s => s.Id)
+                    .ToHashSet();
+
+                groups = groups.Where(g => serverIds.Contains(g.ServerId)).ToList();
+            }
+
             return Ok(groups);
         }
 

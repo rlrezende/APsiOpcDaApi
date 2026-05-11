@@ -1,5 +1,4 @@
-using APsiOpcDaApi.Application.DTOs;
-using APsiOpcDaApi.Domain.Entities;
+﻿using APsiOpcDaApi.Domain.Entities;
 using APsiOpcDaApi.Domain.Interfaces.Repositories;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -12,31 +11,51 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
         {
         }
 
-        /// <summary>
-        /// Obtém as leituras filtradas por unidade, período e tags.
-        /// </summary>
-        /// <param name="unidadeId">ID da unidade</param>
-        /// <param name="dataInicio">Data inicial do período</param>
-        /// <param name="dataFim">Data final do período</param>
-        /// <param name="tagIds">Lista de IDs das tags</param>
-        /// <returns>Lista de leituras filtradas</returns>
         public async Task<List<Leitura>> ObterLeiturasPorPeriodoETagsAsync(Guid unidadeId, DateTime dataInicioUtc, DateTime dataFimUtc, List<Guid> tagIds)
         {
+            var dataInicio = Instant.FromDateTimeUtc(dataInicioUtc);
+            var dataFim = Instant.FromDateTimeUtc(dataFimUtc);
 
-                Instant dataInicio = Instant.FromDateTimeUtc(dataInicioUtc);
-                Instant dataFim = Instant.FromDateTimeUtc(dataFimUtc); 
-                return await (from leitura in _dbSet.AsNoTracking()
-                    join tag in _context.Tag.AsNoTracking() on leitura.TagId equals tag.Id
-                    where tag.ModuloId == unidadeId &&
-                            leitura.DataLeitura >= dataInicio &&
-                            leitura.DataLeitura <= dataFim &&
-                            (tagIds == null || !tagIds.Any() || tagIds.Contains(leitura.TagId))
-                    select new Leitura
+            var tagsQuery = _context.Tag
+                .AsNoTracking()
+                .Where(t => t.ModuloId == unidadeId);
+
+            if (tagIds is { Count: > 0 })
+            {
+                tagsQuery = tagsQuery.Where(t => tagIds.Contains(t.Id));
+            }
+
+            var tagInfos = await tagsQuery
+                .Select(t => new { t.Id, t.Nome, t.ModuloId, t.Descricao })
+                .ToListAsync();
+
+            if (tagInfos.Count == 0)
+            {
+                return new List<Leitura>();
+            }
+
+            var tagInfoById = tagInfos.ToDictionary(t => t.Id);
+            var tagIdsValidos = tagInfos.Select(t => t.Id).ToList();
+
+            var leituras = await _dbSet
+                .AsNoTracking()
+                .Where(l => tagIdsValidos.Contains(l.TagId)
+                            && l.DataLeitura >= dataInicio
+                            && l.DataLeitura <= dataFim)
+                .Select(l => new { l.Id, l.DataLeitura, l.Valor, l.TagId })
+                .OrderBy(l => l.DataLeitura)
+                .ToListAsync();
+
+            return leituras
+                .Select(l =>
+                {
+                    var tag = tagInfoById[l.TagId];
+                    return new Leitura
                     {
-                        Id = leitura.Id,
-                        DataLeitura = leitura.DataLeitura,
-                        Valor = leitura.Valor,
-                        TagId = leitura.TagId,
+                        Id = l.Id,
+                        DataLeitura = l.DataLeitura,
+                        Valor = l.Valor,
+                        TagId = l.TagId,
                         Tag = new Tag
                         {
                             Id = tag.Id,
@@ -44,38 +63,40 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
                             ModuloId = tag.ModuloId,
                             Descricao = tag.Descricao
                         }
-                    })
-                    .ToListAsync();
-
-    
+                    };
+                })
+                .ToList();
         }
 
-    /// <summary>
-    /// Obtém as leituras das duas tags no período informado.
-    /// </summary>
-    /// <param name="unidadeId">ID da unidade</param>
-    /// <param name="tagIds">Lista com os IDs das duas tags</param>
-    /// <param name="dataInicio">Data inicial do período</param>
-    /// <param name="dataFim">Data final do período</param>
-    /// <returns>Lista de leituras (entidades)</returns>
-    public async Task<List<Leitura>> ObterLeiturasSincronizadasEntreTagsAsync(
-        Guid unidadeId, List<Guid> tagIds, DateTime dataInicioUtc, DateTime dataFimUtc)
-    {
-        Instant dataInicio = Instant.FromDateTimeUtc(dataInicioUtc);
-        Instant dataFim = Instant.FromDateTimeUtc(dataFimUtc); 
+        public async Task<List<Leitura>> ObterLeiturasSincronizadasEntreTagsAsync(
+            Guid unidadeId, List<Guid> tagIds, DateTime dataInicioUtc, DateTime dataFimUtc)
+        {
+            var dataInicio = Instant.FromDateTimeUtc(dataInicioUtc);
+            var dataFim = Instant.FromDateTimeUtc(dataFimUtc);
 
+            if (tagIds == null || tagIds.Count == 0)
+            {
+                return new List<Leitura>();
+            }
 
-        return await _dbSet
-            .AsNoTracking()
-            .Where(l => tagIds.Contains(l.TagId) &&
-                        l.Tag.ModuloId == unidadeId &&
-                        l.DataLeitura >= dataInicio &&
-                        l.DataLeitura <= dataFim)
-            .OrderBy(l => l.DataLeitura)
-            .ToListAsync();
-    }
+            var tagIdsValidos = await _context.Tag
+                .AsNoTracking()
+                .Where(t => t.ModuloId == unidadeId && tagIds.Contains(t.Id))
+                .Select(t => t.Id)
+                .ToListAsync();
 
-        // Métodos específicos para Leitura podem ser implementados aqui
+            if (tagIdsValidos.Count == 0)
+            {
+                return new List<Leitura>();
+            }
+
+            return await _dbSet
+                .AsNoTracking()
+                .Where(l => tagIdsValidos.Contains(l.TagId)
+                            && l.DataLeitura >= dataInicio
+                            && l.DataLeitura <= dataFim)
+                .OrderBy(l => l.DataLeitura)
+                .ToListAsync();
+        }
     }
 }
-

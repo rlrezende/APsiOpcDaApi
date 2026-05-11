@@ -28,17 +28,25 @@ namespace APsiOpcDaApi.API.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll([FromQuery] Guid? unidadeId = null)
         {
             var servers = await _opcServerService.GetServersByTypeAsync(TipoOpcServer.Da);
+            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
+            {
+                servers = servers.Where(s => s.ModuloId == unidadeId.Value);
+            }
             return Ok(servers);
         }
 
         [HttpGet("{id:guid}")]
-        public async Task<IActionResult> GetById(Guid id)
+        public async Task<IActionResult> GetById(Guid id, [FromQuery] Guid? unidadeId = null)
         {
             var server = await _opcServerService.GetByIdAsync(id);
             if (server == null || server.Tipo != TipoOpcServer.Da)
+            {
+                return NotFound();
+            }
+            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty && server.ModuloId != unidadeId.Value)
             {
                 return NotFound();
             }
@@ -101,6 +109,7 @@ namespace APsiOpcDaApi.API.Controllers
                 var targetHost = string.IsNullOrWhiteSpace(host) ? "localhost" : host.Trim();
 
                 var existing = (await _opcServerService.GetServersByTypeAsync(TipoOpcServer.Da))
+                    .Where(s => s.ModuloId == unidadeId)
                     .ToDictionary(
                         s => $"{(s.Host ?? string.Empty).ToLowerInvariant()}|{(s.ProgId ?? s.Endpoint ?? string.Empty).ToLowerInvariant()}",
                         s => s);
@@ -163,8 +172,17 @@ namespace APsiOpcDaApi.API.Controllers
         }
 
         [HttpGet("{id:guid}/browse")]
-        public async Task<IActionResult> Browse(Guid id, [FromQuery] string? itemId = null)
+        public async Task<IActionResult> Browse(Guid id, [FromQuery] string? itemId = null, [FromQuery] Guid? unidadeId = null)
         {
+            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
+            {
+                var server = await _opcServerService.GetByIdAsync(id);
+                if (server == null || server.ModuloId != unidadeId.Value)
+                {
+                    return NotFound(new { message = "Servidor OPC não pertence à unidade selecionada.", serverId = id, unidadeId });
+                }
+            }
+
             var result = await _opcBrowserService.BrowseNodesAsync(id, itemId);
             return Ok(result);
         }

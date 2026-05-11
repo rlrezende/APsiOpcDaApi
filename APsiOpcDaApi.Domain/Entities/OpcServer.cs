@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 using APsiOpcDaApi.Domain.Enum;
 
 namespace APsiOpcDaApi.Domain.Entities
@@ -16,6 +17,8 @@ namespace APsiOpcDaApi.Domain.Entities
         public string Endpoint { get; set; } = string.Empty;
 
         public Guid ModuloId { get; set; }
+        [NotMapped]
+        public Guid UnidadeId { get => ModuloId; set => ModuloId = value; }
         public string? Descricao { get; set; }
 
         /// <summary>

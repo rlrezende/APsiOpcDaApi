@@ -23,8 +23,19 @@ namespace APsiOpcDaApi.API.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> BrowseNodes(Guid serverId, [FromQuery] string? parentNodeId = null)
         {
-            var nodes = await _opcBrowserService.BrowseNodesAsync(serverId, parentNodeId);
-            return Ok(nodes);
+            try
+            {
+                var nodes = await _opcBrowserService.BrowseNodesAsync(serverId, parentNodeId);
+                return Ok(nodes);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("não encontrado", StringComparison.OrdinalIgnoreCase))
+            {
+                return NotFound(new
+                {
+                    message = ex.Message,
+                    serverId
+                });
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using APsiOpcDaApi.Application.Interfaces;
@@ -20,31 +20,31 @@ namespace APsiOpcDaApi.API.Extensions
     {
         public static void ConfigureServices(this IServiceCollection services, IConfiguration configuration)
         {
-            // Configuração do DbContext com Lazy Loading habilitado
+            // ConfiguraÃ§Ã£o do DbContext com Lazy Loading habilitado
             services.AddDbContext<APsiOpcDaApiContext>(options =>
                 options.UseLazyLoadingProxies() // Habilita Lazy Loading
-                       .UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
+                       .UseNpgsql(configuration.GetConnectionString("DefaultConnection"), npgsqlOptions => npgsqlOptions.CommandTimeout(120)));
 
-            // Configuração do Swagger
+            // ConfiguraÃ§Ã£o do Swagger
             services.AddEndpointsApiExplorer();
             ConfigureSwagger(services);
 
-            // Configuração do AutoMapper
+            // ConfiguraÃ§Ã£o do AutoMapper
             services.AddAutoMapper(typeof(MappingProfile));
 
-            // Registro dos Repositórios e UnitOfWork
+            // Registro dos RepositÃ³rios e UnitOfWork
             RegisterRepositories(services);
 
-            // Registro dos Serviços
+            // Registro dos ServiÃ§os
             RegisterServices(services);
 
-            // Configuração da autenticação JWT
+            // ConfiguraÃ§Ã£o da autenticaÃ§Ã£o JWT
             ConfigureAuthentication(services, configuration);
 
-            // Configuração da autorização
+            // ConfiguraÃ§Ã£o da autorizaÃ§Ã£o
             services.AddAuthorization(options =>
             {
-                // Definir a política padrão de autorização para exigir autenticação
+                // Definir a polÃ­tica padrÃ£o de autorizaÃ§Ã£o para exigir autenticaÃ§Ã£o
                 options.FallbackPolicy = new AuthorizationPolicyBuilder()
                     .RequireAuthenticatedUser()
                     .Build();
@@ -59,7 +59,7 @@ namespace APsiOpcDaApi.API.Extensions
                 {
                     Title = "APsiC OPC DA API",
                     Version = "v1",
-                    Description = "API de conexão OPC DA, descoberta, grupos, nós, tags e apoio x86 para integração legada."
+                    Description = "API de conexÃ£o OPC DA, descoberta, grupos, nÃ³s, tags e apoio x86 para integraÃ§Ã£o legada."
                 });
 
                 options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -129,7 +129,7 @@ namespace APsiOpcDaApi.API.Extensions
             services.AddScoped<IOpcDiscoveryService, OpcDiscoveryService>();
             services.AddScoped<IDatabaseBrowserService, DatabaseBrowserService>();
             services.AddScoped<IDatabaseMonitoringService, DatabaseMonitoringService>();
-            // Serviço de manipulação web que requer arquitetura x86
+            // ServiÃ§o de manipulaÃ§Ã£o web que requer arquitetura x86
             services.AddScoped<IWebBrowserService, WebBrowserService>();
         }
 
@@ -155,14 +155,14 @@ namespace APsiOpcDaApi.API.Extensions
                     ValidateAudience = false
                 };
 
-                // 🔐 Permitir o uso do token via query string (necessário para SignalR)
+                // ðŸ” Permitir o uso do token via query string (necessÃ¡rio para SignalR)
                 options.Events = new JwtBearerEvents
                 {
                     OnMessageReceived = context =>
                     {
                         var accessToken = context.Request.Query["access_token"];
 
-                        // Verifica se o request é para o hub
+                        // Verifica se o request Ã© para o hub
                         var path = context.HttpContext.Request.Path;
                         if (!string.IsNullOrEmpty(accessToken) &&
                             path.StartsWithSegments("/hub/tagsimulacao"))
@@ -177,4 +177,5 @@ namespace APsiOpcDaApi.API.Extensions
         }
     }
 }
+
 

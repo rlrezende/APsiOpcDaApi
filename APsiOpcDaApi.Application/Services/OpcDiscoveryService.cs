@@ -245,7 +245,7 @@ namespace APsiOpcDaApi.Application.Services
         {
             if (unidadeId == Guid.Empty)
             {
-                throw new InvalidOperationException("ModuloId é obrigatório para salvar servidores descobertos.");
+                throw new InvalidOperationException("UnidadeId é obrigatório para salvar servidores descobertos.");
             }
             // Salvar na tabela de descoberta
             var existingDiscovered = await _discoveredServerRepository.GetByEndpointAsync(discoveredServer.Endpoint);
