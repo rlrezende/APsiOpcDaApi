@@ -41,12 +41,10 @@ namespace APsiOpcDaApi.API.Controllers
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetById(Guid id, [FromQuery] Guid? unidadeId = null)
         {
-            var server = await _opcServerService.GetByIdAsync(id);
+            var server = unidadeId.HasValue && unidadeId.Value != Guid.Empty
+                ? await GetDaServerInUnidadeAsync(id, unidadeId.Value)
+                : await _opcServerService.GetByIdAsync(id);
             if (server == null || server.Tipo != TipoOpcServer.Da)
-            {
-                return NotFound();
-            }
-            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty && server.ModuloId != unidadeId.Value)
             {
                 return NotFound();
             }
@@ -86,8 +84,8 @@ namespace APsiOpcDaApi.API.Controllers
             }
             if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
             {
-                var existing = await _opcServerService.GetByIdAsync(id);
-                if (existing == null || existing.ModuloId != unidadeId.Value)
+                var existing = await GetDaServerInUnidadeAsync(id, unidadeId.Value);
+                if (existing == null)
                 {
                     return NotFound();
                 }
@@ -107,8 +105,8 @@ namespace APsiOpcDaApi.API.Controllers
         {
             if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
             {
-                var existing = await _opcServerService.GetByIdAsync(id);
-                if (existing == null || existing.ModuloId != unidadeId.Value)
+                var existing = await GetDaServerInUnidadeAsync(id, unidadeId.Value);
+                if (existing == null)
                 {
                     return NotFound();
                 }
@@ -200,8 +198,8 @@ namespace APsiOpcDaApi.API.Controllers
         {
             if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
             {
-                var server = await _opcServerService.GetByIdAsync(id);
-                if (server == null || server.ModuloId != unidadeId.Value)
+                var server = await GetDaServerInUnidadeAsync(id, unidadeId.Value);
+                if (server == null)
                 {
                     return NotFound(new { message = "Servidor OPC não pertence à unidade selecionada.", serverId = id, unidadeId });
                 }
@@ -231,6 +229,12 @@ namespace APsiOpcDaApi.API.Controllers
             }
 
             return first;
+        }
+
+        private async Task<OpcServerDTO?> GetDaServerInUnidadeAsync(Guid serverId, Guid unidadeId)
+        {
+            var servers = await _opcServerService.GetServersByTypeAsync(TipoOpcServer.Da);
+            return servers.FirstOrDefault(s => s.Id == serverId && s.ModuloId == unidadeId);
         }
 
         private static string? ExtractClsId(URL? url)

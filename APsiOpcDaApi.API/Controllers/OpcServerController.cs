@@ -30,12 +30,10 @@ namespace APsiOpcDaApi.Controllers
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetById(Guid id, [FromQuery] Guid? unidadeId = null)
         {
-            var server = await _opcServerService.GetByIdAsync(id);
+            var server = unidadeId.HasValue && unidadeId.Value != Guid.Empty
+                ? await GetServerInUnidadeAsync(id, unidadeId.Value)
+                : await _opcServerService.GetByIdAsync(id);
             if (server == null)
-            {
-                return NotFound();
-            }
-            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty && server.ModuloId != unidadeId.Value)
             {
                 return NotFound();
             }
@@ -72,8 +70,8 @@ namespace APsiOpcDaApi.Controllers
             }
             if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
             {
-                var existing = await _opcServerService.GetByIdAsync(id);
-                if (existing == null || existing.ModuloId != unidadeId.Value)
+                var existing = await GetServerInUnidadeAsync(id, unidadeId.Value);
+                if (existing == null)
                 {
                     return NotFound();
                 }
@@ -90,8 +88,8 @@ namespace APsiOpcDaApi.Controllers
         {
             if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
             {
-                var existing = await _opcServerService.GetByIdAsync(id);
-                if (existing == null || existing.ModuloId != unidadeId.Value)
+                var existing = await GetServerInUnidadeAsync(id, unidadeId.Value);
+                if (existing == null)
                 {
                     return NotFound();
                 }
@@ -107,6 +105,12 @@ namespace APsiOpcDaApi.Controllers
             {
                 opcDaSupported = _opcServerService.IsOpcDaSupported()
             });
+        }
+
+        private async Task<OpcServerDTO?> GetServerInUnidadeAsync(Guid serverId, Guid unidadeId)
+        {
+            var servers = await _opcServerService.GetAllAsync();
+            return servers.FirstOrDefault(s => s.Id == serverId && s.ModuloId == unidadeId);
         }
     }
 }
