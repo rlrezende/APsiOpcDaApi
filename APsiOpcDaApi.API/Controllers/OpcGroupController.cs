@@ -44,8 +44,8 @@ namespace APsiOpcDaApi.API.Controllers
         {
             if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
             {
-                var server = await _serverService.GetByIdAsync(serverId);
-                if (server == null || server.ModuloId != unidadeId.Value)
+                var server = await GetServerInUnidadeAsync(serverId, unidadeId.Value);
+                if (server == null)
                 {
                     return Ok(Enumerable.Empty<OpcGroupDTO>());
                 }
@@ -83,16 +83,28 @@ namespace APsiOpcDaApi.API.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> CreateGroup([FromBody] OpcGroupDTO groupDto)
+        public async Task<IActionResult> CreateGroup([FromBody] OpcGroupDTO groupDto, [FromQuery] Guid? unidadeId = null)
         {
+            var validation = await ValidateGroupServerAsync(groupDto.ServerId, unidadeId);
+            if (validation != null)
+            {
+                return validation;
+            }
+
             var createdGroup = await _groupService.AddAsync(groupDto);
             return CreatedAtAction(nameof(GetGroup), new { groupId = createdGroup.Id }, createdGroup);
         }
 
         [HttpPut("{groupId}")]
-        public async Task<IActionResult> UpdateGroup(Guid groupId, [FromBody] OpcGroupDTO groupDto)
+        public async Task<IActionResult> UpdateGroup(Guid groupId, [FromBody] OpcGroupDTO groupDto, [FromQuery] Guid? unidadeId = null)
         {
             groupDto.Id = groupId;
+            var validation = await ValidateGroupServerAsync(groupDto.ServerId, unidadeId);
+            if (validation != null)
+            {
+                return validation;
+            }
+
             await _groupService.UpdateAsync(groupDto);
             return NoContent();
         }
@@ -151,6 +163,28 @@ namespace APsiOpcDaApi.API.Controllers
 
             return Ok(new { message = "Tag removida do grupo com sucesso" });
         }
+
+        private async Task<OpcServerDTO?> GetServerInUnidadeAsync(Guid serverId, Guid unidadeId)
+        {
+            var servers = await _serverService.GetAllAsync();
+            return servers.FirstOrDefault(s => s.Id == serverId && s.ModuloId == unidadeId);
+        }
+
+        private async Task<IActionResult?> ValidateGroupServerAsync(Guid serverId, Guid? unidadeId)
+        {
+            if (!unidadeId.HasValue || unidadeId.Value == Guid.Empty || serverId == Guid.Empty)
+            {
+                return null;
+            }
+
+            var server = await GetServerInUnidadeAsync(serverId, unidadeId.Value);
+            if (server == null)
+            {
+                return StatusCode(403, new { message = "Servidor OPC não pertence à unidade selecionada ou o usuário não possui acesso a ela." });
+            }
+
+            return null;
+        }
     }
 
         public class AddTagsWithNodesToGroupRequest
@@ -160,4 +194,3 @@ namespace APsiOpcDaApi.API.Controllers
         }
 
 }
-
