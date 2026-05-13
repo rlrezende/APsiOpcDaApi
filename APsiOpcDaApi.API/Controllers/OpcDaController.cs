@@ -149,13 +149,13 @@ namespace APsiOpcDaApi.API.Controllers
                         IsOnline = true
                     };
 
-                    discovered.Add(dto);
-
                     if (!existing.ContainsKey(dictionaryKey))
                     {
                         var created = await _opcServerService.AddAsync(dto);
                         existing[dictionaryKey] = created;
                     }
+
+                    discovered.Add(existing[dictionaryKey]);
                 }
 
                 return Ok(new
