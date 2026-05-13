@@ -184,11 +184,15 @@ namespace APsiOpcDaApi.Application.Services
 
         public async Task<OpcDiscoveredServerDTO> DiscoverLocalhostAsync(Guid unidadeId, int port = 4840)
         {
+            if (unidadeId == Guid.Empty)
+            {
+                throw new InvalidOperationException("UnidadeId é obrigatório para descobrir servidores.");
+            }
+
             var endpoint = $"opc.tcp://localhost:{port}";
             var name = $"Localhost OPC Server (:{port})";
 
-            // Verificar se já existe um OpcServer com esse endpoint
-            var existingOpcServer = await _opcServerService.GetByEndpointAsync(endpoint);
+            var existingOpcServer = await _opcServerService.GetByEndpointAndModuloIdAsync(endpoint, unidadeId);
             if (existingOpcServer != null)
             {
                 // Atualizar status na tabela de descoberta se existir
@@ -266,7 +270,7 @@ namespace APsiOpcDaApi.Application.Services
             // Se online, também salvar como OpcServer para uso nos grupos
             if (discoveredServer.IsOnline)
             {
-                var existingOpcServer = await _opcServerService.GetByEndpointAsync(discoveredServer.Endpoint);
+                var existingOpcServer = await _opcServerService.GetByEndpointAndModuloIdAsync(discoveredServer.Endpoint, unidadeId);
                 if (existingOpcServer == null)
                 {
                     var opcServerDto = new OpcServerDTO

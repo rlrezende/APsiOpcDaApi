@@ -18,6 +18,13 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
                 .FirstOrDefaultAsync(server => server.Endpoint == endpoint);
         }
 
+        public async Task<OpcServer?> GetByEndpointAndModuloIdAsync(string endpoint, Guid moduloId)
+        {
+            return await _dbSet
+                .AsNoTracking()
+                .FirstOrDefaultAsync(server => server.Endpoint == endpoint && server.ModuloId == moduloId);
+        }
+
         public async Task<IEnumerable<OpcServer>> GetServersByTypeAsync(TipoOpcServer tipo)
         {
             return await _dbSet
@@ -27,4 +34,3 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
         }
     }
 }
-

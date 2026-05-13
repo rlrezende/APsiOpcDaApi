@@ -107,22 +107,6 @@ namespace APsiOpcDaApi.API.Controllers
                     });
                 }
 
-                // Verificar se já existe
-                var existingServers = await _discoveryService.GetDiscoveredServersAsync();
-                var existingServer = existingServers.FirstOrDefault(s => s.Endpoint == endpoint);
-                
-                if (existingServer != null)
-                {
-                    return Ok(new { 
-                        message = "Servidor localhost já existe", 
-                        serverId = existingServer.Id,
-                        endpoint = endpoint,
-                        isOnline = true,
-                        alreadyExists = true
-                    });
-                }
-
-                // Adicionar novo servidor localhost
                 var serverName = $"Localhost OPC Server (:{port})";
                 var discoveredServer = await _discoveryService.AddManualServerAsync(unidadeId, serverName, endpoint);
                 

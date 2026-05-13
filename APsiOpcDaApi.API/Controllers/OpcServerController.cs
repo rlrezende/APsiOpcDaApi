@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using APsiOpcDaApi.Application.DTOs;
 using APsiOpcDaApi.Application.Interfaces;
@@ -18,17 +19,23 @@ namespace APsiOpcDaApi.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll([FromQuery] Guid? unidadeId = null)
         {
             var servers = await _opcServerService.GetAllAsync();
+            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
+                servers = servers.Where(s => s.ModuloId == unidadeId.Value);
             return Ok(servers);
         }
 
         [HttpGet("{id:guid}")]
-        public async Task<IActionResult> GetById(Guid id)
+        public async Task<IActionResult> GetById(Guid id, [FromQuery] Guid? unidadeId = null)
         {
             var server = await _opcServerService.GetByIdAsync(id);
             if (server == null)
+            {
+                return NotFound();
+            }
+            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty && server.ModuloId != unidadeId.Value)
             {
                 return NotFound();
             }
@@ -37,11 +44,19 @@ namespace APsiOpcDaApi.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] OpcServerDTO serverDto)
+        public async Task<IActionResult> Create([FromBody] OpcServerDTO serverDto, [FromQuery] Guid? unidadeId = null)
         {
             if (serverDto == null)
             {
                 return BadRequest("Payload inválido.");
+            }
+            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
+            {
+                serverDto.ModuloId = unidadeId.Value;
+            }
+            if (serverDto.ModuloId == Guid.Empty)
+            {
+                return BadRequest(new { message = "UnidadeId é obrigatório." });
             }
 
             var created = await _opcServerService.AddAsync(serverDto);
@@ -49,11 +64,20 @@ namespace APsiOpcDaApi.Controllers
         }
 
         [HttpPut("{id:guid}")]
-        public async Task<IActionResult> Update(Guid id, [FromBody] OpcServerDTO serverDto)
+        public async Task<IActionResult> Update(Guid id, [FromBody] OpcServerDTO serverDto, [FromQuery] Guid? unidadeId = null)
         {
             if (serverDto == null)
             {
                 return BadRequest("Payload inválido.");
+            }
+            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
+            {
+                var existing = await _opcServerService.GetByIdAsync(id);
+                if (existing == null || existing.ModuloId != unidadeId.Value)
+                {
+                    return NotFound();
+                }
+                serverDto.ModuloId = unidadeId.Value;
             }
 
             serverDto.Id = id;
@@ -62,8 +86,16 @@ namespace APsiOpcDaApi.Controllers
         }
 
         [HttpDelete("{id:guid}")]
-        public async Task<IActionResult> Delete(Guid id)
+        public async Task<IActionResult> Delete(Guid id, [FromQuery] Guid? unidadeId = null)
         {
+            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
+            {
+                var existing = await _opcServerService.GetByIdAsync(id);
+                if (existing == null || existing.ModuloId != unidadeId.Value)
+                {
+                    return NotFound();
+                }
+            }
             await _opcServerService.DeleteAsync(id);
             return NoContent();
         }
@@ -78,4 +110,3 @@ namespace APsiOpcDaApi.Controllers
         }
     }
 }
-

@@ -62,6 +62,12 @@ namespace APsiOpcDaApi.Application.Services
             return server != null ? _serviceMapper.Map<OpcServerDTO>(server) : null;
         }
 
+        public async Task<OpcServerDTO?> GetByEndpointAndModuloIdAsync(string endpoint, Guid moduloId)
+        {
+            var server = await _opcServerRepository.GetByEndpointAndModuloIdAsync(endpoint, moduloId);
+            return server != null ? _serviceMapper.Map<OpcServerDTO>(server) : null;
+        }
+
         public async Task<IEnumerable<OpcServerDTO>> GetServersByTypeAsync(TipoOpcServer tipo)
         {
             if (!_isWindows && tipo == TipoOpcServer.Da)
@@ -98,4 +104,3 @@ namespace APsiOpcDaApi.Application.Services
         }
     }
 }
-
