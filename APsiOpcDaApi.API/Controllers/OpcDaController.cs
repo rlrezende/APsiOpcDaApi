@@ -20,11 +20,16 @@ namespace APsiOpcDaApi.API.Controllers
     {
         private readonly IOpcServerService _opcServerService;
         private readonly IOpcBrowserService _opcBrowserService;
+        private readonly IOpcDaClientService _opcDaClientService;
 
-        public OpcDaController(IOpcServerService opcServerService, IOpcBrowserService opcBrowserService)
+        public OpcDaController(
+            IOpcServerService opcServerService,
+            IOpcBrowserService opcBrowserService,
+            IOpcDaClientService opcDaClientService)
         {
             _opcServerService = opcServerService;
             _opcBrowserService = opcBrowserService;
+            _opcDaClientService = opcDaClientService;
         }
 
         [HttpGet]
@@ -190,6 +195,32 @@ namespace APsiOpcDaApi.API.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = "Erro ao descobrir servidores OPC DA.", error = ex.Message });
+            }
+        }
+
+        [HttpPost("{id:guid}/write")]
+        public async Task<IActionResult> WriteValue(Guid id, [FromBody] OpcDaWriteRequestDTO dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto?.ItemId))
+                return BadRequest(new { message = "ItemId é obrigatório." });
+
+            var server = await _opcServerService.GetByIdAsync(id);
+            if (server == null || server.Tipo != TipoOpcServer.Da)
+                return NotFound(new { message = "Servidor OPC DA não encontrado." });
+
+            if (!_opcDaClientService.IsSupported)
+                return BadRequest(new { message = "Write OPC DA só é suportado em ambiente Windows." });
+
+            try
+            {
+                var ok = await _opcDaClientService.WriteValueAsync(server, dto.ItemId, dto.Value);
+                return ok
+                    ? Ok(new { success = true, itemId = dto.ItemId, value = dto.Value })
+                    : StatusCode(500, new { message = "Write falhou no servidor OPC DA.", itemId = dto.ItemId });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Erro ao escrever no servidor OPC DA.", error = ex.Message });
             }
         }
 

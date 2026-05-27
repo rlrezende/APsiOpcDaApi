@@ -46,6 +46,7 @@ namespace APsiOpcDaApi.Application.Services
         private readonly ConcurrentDictionary<Guid, DateTime> _lastOpcEventAt = new();
         private readonly ConcurrentDictionary<Guid, DateTime> _lastReplaySentAt = new();
         private readonly ConcurrentDictionary<Guid, DateTime> _daGroupLastEventAt = new();
+        private readonly ConcurrentDictionary<Guid, double> _lastFilteredValue = new();
 
         private readonly IServiceScopeFactory _scopeFactory;
         private ApplicationConfiguration? _applicationConfiguration;
@@ -519,7 +520,6 @@ namespace APsiOpcDaApi.Application.Services
 
         private void ProcessDataChange(Guid tagId, DataValue dataValue)
         {
-            // Use Task.Run para capturar exceções e não bloquear thread de evento
             Task.Run(async () =>
             {
                 using var scope = _scopeFactory.CreateScope();
@@ -531,43 +531,37 @@ namespace APsiOpcDaApi.Application.Services
                 {
                     if (dataValue?.Value == null || !StatusCode.IsGood(dataValue.StatusCode))
                     {
-                        _logger.LogWarning($"Valor inválido recebido para tag {tagId}");
+                        _logger.LogWarning("Valor inválido recebido para tag {TagId}", tagId);
                         return;
                     }
 
-                    if (double.TryParse(dataValue.Value.ToString(), out var valorNumerico))
+                    var rawString = dataValue.Value.ToString();
+                    if (!double.TryParse(rawString, NumberStyles.Any, CultureInfo.InvariantCulture, out var valorBruto))
+                        return;
+
+                    var tag = await tagService.GetByIdAsync(tagId);
+                    if (tag == null) return;
+
+                    _lastFilteredValue[tagId] = valorBruto;
+
+                    var ts     = dataValue.SourceTimestamp != DateTime.MinValue ? dataValue.SourceTimestamp : DateTime.UtcNow;
+                    var tsNotif = dataValue.ServerTimestamp != DateTime.MinValue ? dataValue.ServerTimestamp : DateTime.UtcNow;
+
+                    tag.ValorAtual = valorBruto;
+                    await tagService.UpdateAsync(tag);
+
+                    await leituraService.AddAsync(new LeituraDTO
                     {
-                        var tag = await tagService.GetByIdAsync(tagId);
-                        if (tag != null)
-                        {
-                            _logger.LogInformation($"📊 Processando tag {tag.Nome} (ID: {tagId}): Valor {valorNumerico}");
-                            
-                            tag.ValorAtual = valorNumerico;
-                            await tagService.UpdateAsync(tag);
+                        TagId = tagId,
+                        Valor = valorBruto,
+                        DataLeitura = ts
+                    });
 
-                            await leituraService.AddAsync(new LeituraDTO
-                            {
-                                TagId = tagId,
-                                Valor = valorNumerico,
-                                DataLeitura = dataValue.SourceTimestamp != DateTime.MinValue 
-                                    ? dataValue.SourceTimestamp 
-                                    : DateTime.UtcNow
-                            });
-
-                            await notificador.NotificarAtualizacaoTagAsync(
-                                tagId,
-                                valorNumerico,
-                                dataValue.ServerTimestamp != DateTime.MinValue 
-                                    ? dataValue.ServerTimestamp 
-                                    : DateTime.UtcNow);
-                                    
-                            _logger.LogInformation($"✅ Tag {tag.Nome} salva no BD e enviada via SignalR");
-                        }
-                    }
+                    await notificador.NotificarAtualizacaoTagAsync(tagId, valorBruto, tsNotif);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, $"Erro ao processar mudança de dados para tag {tagId}");
+                    _logger.LogError(ex, "Erro ao processar mudança de dados para tag {TagId}", tagId);
                 }
             });
         }
@@ -885,14 +879,10 @@ namespace APsiOpcDaApi.Application.Services
         private async Task ProcessOpcDaValueAsync(Guid tagId, OpcTagDTO opcValue)
         {
             if (string.IsNullOrWhiteSpace(opcValue.NodeId) || string.IsNullOrWhiteSpace(opcValue.ValorAtual))
-            {
                 return;
-            }
 
-            if (!double.TryParse(opcValue.ValorAtual, NumberStyles.Any, CultureInfo.InvariantCulture, out var numericValue))
-            {
+            if (!double.TryParse(opcValue.ValorAtual, NumberStyles.Any, CultureInfo.InvariantCulture, out var valorBruto))
                 return;
-            }
 
             using var scope = _scopeFactory.CreateScope();
             var tagService = scope.ServiceProvider.GetRequiredService<ITagService>();
@@ -903,31 +893,29 @@ namespace APsiOpcDaApi.Application.Services
             {
                 var tag = await tagService.GetByIdAsync(tagId);
                 if (tag == null || !tag.Monitora)
-                {
                     return;
-                }
 
                 if (!string.Equals(tag.NodeIdOpc, opcValue.NodeId, StringComparison.OrdinalIgnoreCase))
-                {
                     return;
-                }
 
-                tag.ValorAtual = numericValue;
+                _lastFilteredValue[tagId] = valorBruto;
+
+                tag.ValorAtual = valorBruto;
                 await tagService.UpdateAsync(tag);
 
-                var timestamp = opcValue.Timestamp ?? DateTime.UtcNow;
+                var timestamp       = opcValue.Timestamp ?? DateTime.UtcNow;
                 var eventReceivedAt = DateTime.UtcNow;
-                _lastOpcEventAt[tag.Id] = eventReceivedAt;
-                _lastReplaySentAt[tag.Id] = eventReceivedAt;
+                _lastOpcEventAt[tagId]    = eventReceivedAt;
+                _lastReplaySentAt[tagId]  = eventReceivedAt;
 
                 await leituraService.AddAsync(new LeituraDTO
                 {
-                    TagId = tag.Id,
-                    Valor = numericValue,
-                    DataLeitura = timestamp
+                    TagId        = tagId,
+                    Valor        = valorBruto,
+                    DataLeitura  = timestamp
                 });
 
-                await notificador.NotificarAtualizacaoTagAsync(tag.Id, numericValue, timestamp);
+                await notificador.NotificarAtualizacaoTagAsync(tagId, valorBruto, timestamp);
             }
             catch (Exception ex)
             {
@@ -1176,6 +1164,7 @@ namespace APsiOpcDaApi.Application.Services
             _daGroupLastEventAt.Clear();
             _lastOpcEventAt.Clear();
             _lastReplaySentAt.Clear();
+            _lastFilteredValue.Clear();
 
             // Fechar todas as sessões
             foreach (var session in _activeSessions.Values)

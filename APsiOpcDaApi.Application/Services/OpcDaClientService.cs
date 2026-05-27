@@ -711,5 +711,48 @@ namespace APsiOpcDaApi.Application.Services
             _logger.LogInformation("📊 Leitura alternativa concluída: {Count} tags processadas", tags.Count);
             return tags;
         }
+
+        public Task<bool> WriteValueAsync(OpcServerDTO server, string itemId, double value)
+        {
+            EnsureCanUseDa(server);
+            return Task.Run(() => RunOnSta(() => WriteInternal(server, itemId, value)));
+        }
+
+        private bool WriteInternal(OpcServerDTO serverDto, string itemId, double value)
+        {
+            using var scope = CreateConnection(serverDto);
+
+            var itemValue = new ItemValue
+            {
+                ItemName = itemId,
+                Value = value,
+                Quality = new Quality(qualityBits.good),
+                QualitySpecified = true,
+                TimestampSpecified = false
+            };
+
+            IdentifiedResult[]? results = null;
+            try
+            {
+                results = scope.Server.Write(new[] { itemValue });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao escrever valor OPC DA para {ItemId}", itemId);
+                return false;
+            }
+
+            if (results == null || results.Length == 0)
+            {
+                _logger.LogWarning("Write OPC DA para {ItemId} não retornou resultado", itemId);
+                return false;
+            }
+
+            var ok = results[0].ResultID.Succeeded();
+            if (!ok)
+                _logger.LogWarning("Write OPC DA falhou para {ItemId}: {Code}", itemId, results[0].ResultID);
+
+            return ok;
+        }
     }
 }

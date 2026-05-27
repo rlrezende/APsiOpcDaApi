@@ -12,6 +12,8 @@ namespace APsiOpcDaApi.Application.Interfaces
         Task<OpcBrowseResultDTO> BrowseAsync(OpcServerDTO server, string? itemId = null);
 
         Task<IReadOnlyList<OpcTagDTO>> ReadValuesAsync(OpcServerDTO server, IEnumerable<string> itemIds);
+
+        Task<bool> WriteValueAsync(OpcServerDTO server, string itemId, double value);
     }
 }
 
