@@ -48,6 +48,10 @@ namespace APsiOpcDaApi.Application.Services
         private readonly ConcurrentDictionary<Guid, DateTime> _daGroupLastEventAt = new();
         private readonly ConcurrentDictionary<Guid, double> _lastFilteredValue = new();
 
+        // Controlo do intervalo de gravação no histórico (equivalente ao VB6 HISTORIANTIME=30s)
+        private readonly ConcurrentDictionary<Guid, DateTime> _lastHistorianSave = new();
+        private static readonly TimeSpan HistorianInterval = TimeSpan.FromSeconds(30);
+
         private readonly IServiceScopeFactory _scopeFactory;
         private ApplicationConfiguration? _applicationConfiguration;
         private readonly HashSet<Guid> _managedSubscriptionGroupIds = new();
@@ -550,12 +554,18 @@ namespace APsiOpcDaApi.Application.Services
                     tag.ValorAtual = valorBruto;
                     await tagService.UpdateAsync(tag);
 
-                    await leituraService.AddAsync(new LeituraDTO
+                    var nowUa = DateTime.UtcNow;
+                    if (!_lastHistorianSave.TryGetValue(tagId, out var lastSaveUa)
+                        || nowUa - lastSaveUa >= HistorianInterval)
                     {
-                        TagId = tagId,
-                        Valor = valorBruto,
-                        DataLeitura = ts
-                    });
+                        _lastHistorianSave[tagId] = nowUa;
+                        await leituraService.AddAsync(new LeituraDTO
+                        {
+                            TagId = tagId,
+                            Valor = valorBruto,
+                            DataLeitura = ts
+                        });
+                    }
 
                     await notificador.NotificarAtualizacaoTagAsync(tagId, valorBruto, tsNotif);
                 }
@@ -723,15 +733,21 @@ namespace APsiOpcDaApi.Application.Services
                                 continue;
                             }
 
-                            await leituraService.AddAsync(new LeituraDTO
-                            {
-                                TagId = tag.Id,
-                                Valor = tag.ValorAtual.Value,
-                                DataLeitura = now
-                            });
-
+                            // Replay notifica SignalR sempre; grava no histórico só a cada HistorianInterval
                             await notificador.NotificarAtualizacaoTagAsync(tag.Id, tag.ValorAtual.Value, now);
                             _lastReplaySentAt[tag.Id] = now;
+
+                            if (!_lastHistorianSave.TryGetValue(tag.Id, out var lastSaveReplay)
+                                || now - lastSaveReplay >= HistorianInterval)
+                            {
+                                _lastHistorianSave[tag.Id] = now;
+                                await leituraService.AddAsync(new LeituraDTO
+                                {
+                                    TagId = tag.Id,
+                                    Valor = tag.ValorAtual.Value,
+                                    DataLeitura = now
+                                });
+                            }
                         }
                     }
 
@@ -908,12 +924,17 @@ namespace APsiOpcDaApi.Application.Services
                 _lastOpcEventAt[tagId]    = eventReceivedAt;
                 _lastReplaySentAt[tagId]  = eventReceivedAt;
 
-                await leituraService.AddAsync(new LeituraDTO
+                if (!_lastHistorianSave.TryGetValue(tagId, out var lastSaveDa)
+                    || eventReceivedAt - lastSaveDa >= HistorianInterval)
                 {
-                    TagId        = tagId,
-                    Valor        = valorBruto,
-                    DataLeitura  = timestamp
-                });
+                    _lastHistorianSave[tagId] = eventReceivedAt;
+                    await leituraService.AddAsync(new LeituraDTO
+                    {
+                        TagId        = tagId,
+                        Valor        = valorBruto,
+                        DataLeitura  = timestamp
+                    });
+                }
 
                 await notificador.NotificarAtualizacaoTagAsync(tagId, valorBruto, timestamp);
             }
@@ -1165,6 +1186,7 @@ namespace APsiOpcDaApi.Application.Services
             _lastOpcEventAt.Clear();
             _lastReplaySentAt.Clear();
             _lastFilteredValue.Clear();
+            _lastHistorianSave.Clear();
 
             // Fechar todas as sessões
             foreach (var session in _activeSessions.Values)
