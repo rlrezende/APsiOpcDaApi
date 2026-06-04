@@ -36,6 +36,7 @@ namespace APsiOpcDaApi.Application.DTOs
 
         public string? NomeTabela { get; set; }
         public string? NomeColuna { get; set; }
+        public string? ColunaOrdem { get; set; }
     }
 }
 

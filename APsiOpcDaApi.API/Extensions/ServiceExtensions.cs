@@ -107,7 +107,6 @@ namespace APsiOpcDaApi.API.Extensions
             services.AddScoped<IOpcNodeRepository, OpcNodeRepository>();
             services.AddScoped<IOpcGroupRepository, OpcGroupRepository>();
             services.AddScoped<IOpcDiscoveredServerRepository, OpcDiscoveredServerRepository>();
-            services.AddScoped<IDatabaseMetadataRepository, DatabaseMetadataRepository>();
         }
 
         private static void RegisterServices(IServiceCollection services)
@@ -119,7 +118,6 @@ namespace APsiOpcDaApi.API.Extensions
             services.AddScoped<IUserContextService, UserContextService>();
             services.AddScoped<INotificadorSimulacao, SignalRNotificadorSimulacao>();
             services.AddHostedService<OpcMonitorBackgroundService>();
-            services.AddHostedService<DatabaseMonitorBackgroundService>();
             services.AddScoped<IOpcMonitoringService, OpcMonitoringService>();
             services.AddScoped<IOpcServerService, OpcServerService>();
             services.AddScoped<IOpcNodeService, OpcNodeService>();
@@ -127,8 +125,6 @@ namespace APsiOpcDaApi.API.Extensions
             services.AddScoped<IOpcBrowserService, OpcBrowserService>();
             services.AddScoped<IOpcGroupService, OpcGroupService>();
             services.AddScoped<IOpcDiscoveryService, OpcDiscoveryService>();
-            services.AddScoped<IDatabaseBrowserService, DatabaseBrowserService>();
-            services.AddScoped<IDatabaseMonitoringService, DatabaseMonitoringService>();
             // ServiÃ§o de manipulaÃ§Ã£o web que requer arquitetura x86
             services.AddScoped<IWebBrowserService, WebBrowserService>();
         }

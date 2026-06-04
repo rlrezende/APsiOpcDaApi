@@ -26,6 +26,7 @@ namespace APsiOpcDaApi.Domain.Entities
 
         public string? NomeTabela { get; set; }
         public string? NomeColuna { get; set; }
+        public string? ColunaOrdem { get; set; }
 
         public virtual ICollection<Leitura> Leituras { get; set; } = new List<Leitura>();
 

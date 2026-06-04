@@ -565,6 +565,9 @@ namespace APsiOpcDaApi.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("ColunaOrdem")
+                        .HasColumnType("text");
+
                     b.Property<string>("NomeColuna")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
