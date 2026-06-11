@@ -530,6 +530,7 @@ namespace APsiOpcDaApi.Application.Services
                 var tagService = scope.ServiceProvider.GetRequiredService<ITagService>();
                 var leituraService = scope.ServiceProvider.GetRequiredService<ILeituraService>();
                 var notificador = scope.ServiceProvider.GetRequiredService<INotificadorSimulacao>();
+                var groupService = scope.ServiceProvider.GetRequiredService<IOpcGroupService>();
 
                 try
                 {
@@ -544,7 +545,14 @@ namespace APsiOpcDaApi.Application.Services
                         return;
 
                     var tag = await tagService.GetByIdAsync(tagId);
-                    if (tag == null) return;
+                    if (tag == null || !tag.Monitora) return;
+
+                    if (tag.GroupId.HasValue)
+                    {
+                        var group = await groupService.GetByIdAsync(tag.GroupId.Value);
+                        if (group == null || !group.IsActive)
+                            return;
+                    }
 
                     _lastFilteredValue[tagId] = valorBruto;
 
@@ -904,12 +912,20 @@ namespace APsiOpcDaApi.Application.Services
             var tagService = scope.ServiceProvider.GetRequiredService<ITagService>();
             var leituraService = scope.ServiceProvider.GetRequiredService<ILeituraService>();
             var notificador = scope.ServiceProvider.GetRequiredService<INotificadorSimulacao>();
+            var groupService = scope.ServiceProvider.GetRequiredService<IOpcGroupService>();
 
             try
             {
                 var tag = await tagService.GetByIdAsync(tagId);
                 if (tag == null || !tag.Monitora)
                     return;
+
+                if (tag.GroupId.HasValue)
+                {
+                    var group = await groupService.GetByIdAsync(tag.GroupId.Value);
+                    if (group == null || !group.IsActive)
+                        return;
+                }
 
                 if (!string.Equals(tag.NodeIdOpc, opcValue.NodeId, StringComparison.OrdinalIgnoreCase))
                     return;

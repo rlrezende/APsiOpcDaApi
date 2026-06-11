@@ -11,11 +11,13 @@ namespace APsiOpcDaApi.API.Controllers
     {
         private readonly IOpcDiscoveryService _discoveryService;
         private readonly IOpcServerService _serverService;
+        private readonly IOpcGroupService _groupService;
 
-        public OpcConnectionController(IOpcDiscoveryService discoveryService, IOpcServerService serverService)
+        public OpcConnectionController(IOpcDiscoveryService discoveryService, IOpcServerService serverService, IOpcGroupService groupService)
         {
             _discoveryService = discoveryService;
             _serverService = serverService;
+            _groupService = groupService;
         }
 
         [HttpPost("connect/{serverId}")]
@@ -51,10 +53,32 @@ namespace APsiOpcDaApi.API.Controllers
         }
 
         [HttpPost("disconnect/{serverId}")]
-        public async Task<IActionResult> DisconnectFromServer(Guid serverId)
+        public async Task<IActionResult> DisconnectFromServer(Guid serverId, [FromQuery] Guid? unidadeId = null)
         {
-            await Task.CompletedTask; // Para evitar warning CS1998
-            return Ok(new { message = "Desconectado com sucesso", serverId, disconnectedAt = DateTime.UtcNow });
+            var server = await _serverService.GetByIdAsync(serverId);
+            if (server == null)
+            {
+                return NotFound(new { message = "Servidor OPC nÃ£o encontrado.", serverId });
+            }
+
+            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty && server.ModuloId != unidadeId.Value)
+            {
+                return StatusCode(403, new { message = "Servidor OPC nÃ£o pertence Ã  unidade selecionada.", serverId, unidadeId });
+            }
+
+            server.IsConnected = false;
+            server.ConnectionStatus = "Disconnected";
+            await _serverService.UpdateAsync(server);
+
+            var pausedGroups = await _groupService.DeactivateGroupsByServerAsync(serverId);
+
+            return Ok(new
+            {
+                message = "Desconectado com sucesso. Grupos do servidor pausados.",
+                serverId,
+                pausedGroups,
+                disconnectedAt = DateTime.UtcNow
+            });
         }
 
         [HttpGet("status/{serverId}")]

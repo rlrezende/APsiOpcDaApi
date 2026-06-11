@@ -10,6 +10,7 @@ namespace APsiOpcDaApi.Application.Interfaces
         Task<OpcGroupDTO> GetGroupWithTagsAsync(Guid groupId);
         Task<bool> ActivateGroupAsync(Guid groupId);
         Task<bool> DeactivateGroupAsync(Guid groupId);
+        Task<int> DeactivateGroupsByServerAsync(Guid serverId);
         Task<List<TagDTO>> GetGroupTagsAsync(Guid groupId);
         Task<bool> AddTagsToGroupAsync(Guid groupId, List<TagDTO> tags);
         Task<bool> RemoveTagFromGroupAsync(Guid groupId, Guid tagId);

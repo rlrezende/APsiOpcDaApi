@@ -66,6 +66,20 @@ namespace APsiOpcDaApi.Application.Services
             return true;
         }
 
+        public async Task<int> DeactivateGroupsByServerAsync(Guid serverId)
+        {
+            var groups = await _groupRepository.GetGroupsByServerIdAsync(serverId);
+            var activeGroups = groups.Where(group => group.IsActive).ToList();
+
+            foreach (var groupDto in _mapper.Map<List<OpcGroupDTO>>(activeGroups))
+            {
+                groupDto.IsActive = false;
+                await UpdateAsync(groupDto);
+            }
+
+            return activeGroups.Count;
+        }
+
         public async Task<List<TagDTO>> GetGroupTagsAsync(Guid groupId)
         {
             var group = await _groupRepository.GetGroupWithTagsAsync(groupId);
