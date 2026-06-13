@@ -25,6 +25,9 @@ namespace APsiOpcDaApi.Application.Interfaces
 
         Task<TagDTO?> GetByNodeIdOpcAsync(string nodeIdOpc);
 
+        Task<IEnumerable<TagDTO>> GetByIdsAsync(IEnumerable<Guid> ids);
+
+        Task AtualizarValoresAtuaisAsync(IReadOnlyDictionary<Guid, double> valores);
+
     }
 }
-

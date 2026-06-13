@@ -6,6 +6,7 @@ using AutoMapper;
 using OfficeOpenXml;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace APsiOpcDaApi.Application.Services
@@ -102,7 +103,23 @@ namespace APsiOpcDaApi.Application.Services
             return tag != null ? _mapper.Map<TagDTO>(tag) : null;
         }
 
+        public async Task<IEnumerable<TagDTO>> GetByIdsAsync(IEnumerable<Guid> ids)
+        {
+            var idList = ids.Distinct().ToList();
+            if (idList.Count == 0)
+                return Enumerable.Empty<TagDTO>();
+
+            var tags = await _tagRepository.GetByIdsAsync(idList);
+            return _mapper.Map<IEnumerable<TagDTO>>(tags);
+        }
+
+        public async Task AtualizarValoresAtuaisAsync(IReadOnlyDictionary<Guid, double> valores)
+        {
+            if (valores.Count == 0)
+                return;
+
+            await _tagRepository.AtualizarValoresAtuaisAsync(valores);
+        }
 
     }
 }
-

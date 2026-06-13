@@ -105,6 +105,28 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
                 .Include(tag => tag.Node)
                 .FirstOrDefaultAsync(tag => tag.NodeIdOpc == nodeIdOpc);
         }
+
+        public async Task AtualizarValoresAtuaisAsync(IReadOnlyDictionary<Guid, double> valores)
+        {
+            if (valores.Count == 0)
+                return;
+
+            var ids = valores.Keys.ToList();
+            var tags = await _context.Tag
+                .Where(tag => ids.Contains(tag.Id))
+                .ToListAsync();
+
+            var agora = DateTime.UtcNow;
+            foreach (var tag in tags)
+            {
+                if (!valores.TryGetValue(tag.Id, out var valor))
+                    continue;
+
+                tag.ValorAtual = valor;
+                tag.UpdatedDate = agora;
+            }
+
+            await _context.SaveChangesAsync();
+        }
     }
 }
-

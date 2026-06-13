@@ -11,6 +11,6 @@ namespace APsiOpcDaApi.Domain.Interfaces.Repositories
         Task<IEnumerable<Tag>> SearchTagsAsync(string? searchTerm, string? instrumentClass, Guid? groupId, int? limit = null);
         Task<List<Tag>> GetByIdsAsync(IEnumerable<Guid> ids);
         Task<Tag?> GetByNodeIdOpcAsync(string nodeIdOpc);
+        Task AtualizarValoresAtuaisAsync(IReadOnlyDictionary<Guid, double> valores);
     }
 }
-

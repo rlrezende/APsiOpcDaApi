@@ -489,13 +489,16 @@ namespace APsiOpcDaApi.Application.Services
         {
             try
             {
+                var changes = new List<(Guid TagId, DataValue DataValue)>();
                 foreach (var value in item.DequeueValues())
                 {
                     if (item.Handle is Guid tagId)
                     {
-                        ProcessDataChange(tagId, value);
+                        changes.Add((tagId, value));
                     }
                 }
+
+                ProcessDataChanges(changes);
             }
             catch (Exception ex)
             {
@@ -508,13 +511,16 @@ namespace APsiOpcDaApi.Application.Services
         {
             try
             {
+                var changes = new List<(Guid TagId, DataValue DataValue)>();
                 foreach (var item in notification.MonitoredItems)
                 {
                     if (subscription.MonitoredItems.FirstOrDefault(mi => mi.ClientHandle == item.ClientHandle)?.Handle is Guid tagId)
                     {
-                        ProcessDataChange(tagId, item.Value);
+                        changes.Add((tagId, item.Value));
                     }
                 }
+
+                ProcessDataChanges(changes);
             }
             catch (Exception ex)
             {
@@ -524,8 +530,16 @@ namespace APsiOpcDaApi.Application.Services
 
         private void ProcessDataChange(Guid tagId, DataValue dataValue)
         {
+            ProcessDataChanges(new List<(Guid TagId, DataValue DataValue)> { (tagId, dataValue) });
+        }
+
+        private void ProcessDataChanges(IReadOnlyList<(Guid TagId, DataValue DataValue)> changes)
+        {
             Task.Run(async () =>
             {
+                if (changes.Count == 0)
+                    return;
+
                 using var scope = _scopeFactory.CreateScope();
                 var tagService = scope.ServiceProvider.GetRequiredService<ITagService>();
                 var leituraService = scope.ServiceProvider.GetRequiredService<ILeituraService>();
@@ -534,52 +548,89 @@ namespace APsiOpcDaApi.Application.Services
 
                 try
                 {
-                    if (dataValue?.Value == null || !StatusCode.IsGood(dataValue.StatusCode))
+                    var parsedValues = new Dictionary<Guid, (double Valor, DateTime DataLeitura, DateTime DataNotificacao)>();
+                    foreach (var change in changes)
                     {
-                        _logger.LogWarning("Valor inválido recebido para tag {TagId}", tagId);
-                        return;
-                    }
-
-                    var rawString = dataValue.Value.ToString();
-                    if (!double.TryParse(rawString, NumberStyles.Any, CultureInfo.InvariantCulture, out var valorBruto))
-                        return;
-
-                    var tag = await tagService.GetByIdAsync(tagId);
-                    if (tag == null || !tag.Monitora) return;
-
-                    if (tag.GroupId.HasValue)
-                    {
-                        var group = await groupService.GetByIdAsync(tag.GroupId.Value);
-                        if (group == null || !group.IsActive)
-                            return;
-                    }
-
-                    _lastFilteredValue[tagId] = valorBruto;
-
-                    var ts     = dataValue.SourceTimestamp != DateTime.MinValue ? dataValue.SourceTimestamp : DateTime.UtcNow;
-                    var tsNotif = dataValue.ServerTimestamp != DateTime.MinValue ? dataValue.ServerTimestamp : DateTime.UtcNow;
-
-                    tag.ValorAtual = valorBruto;
-                    await tagService.UpdateAsync(tag);
-
-                    var nowUa = DateTime.UtcNow;
-                    if (!_lastHistorianSave.TryGetValue(tagId, out var lastSaveUa)
-                        || nowUa - lastSaveUa >= HistorianInterval)
-                    {
-                        _lastHistorianSave[tagId] = nowUa;
-                        await leituraService.AddAsync(new LeituraDTO
+                        var dataValue = change.DataValue;
+                        if (dataValue?.Value == null || !StatusCode.IsGood(dataValue.StatusCode))
                         {
-                            TagId = tagId,
-                            Valor = valorBruto,
-                            DataLeitura = ts
-                        });
+                            _logger.LogWarning("Valor inválido recebido para tag {TagId}", change.TagId);
+                            continue;
+                        }
+
+                        var rawString = dataValue.Value.ToString();
+                        if (!double.TryParse(rawString, NumberStyles.Any, CultureInfo.InvariantCulture, out var valorBruto))
+                            continue;
+
+                        var ts = dataValue.SourceTimestamp != DateTime.MinValue ? dataValue.SourceTimestamp : DateTime.UtcNow;
+                        var tsNotif = dataValue.ServerTimestamp != DateTime.MinValue ? dataValue.ServerTimestamp : DateTime.UtcNow;
+                        parsedValues[change.TagId] = (valorBruto, ts, tsNotif);
                     }
 
-                    await notificador.NotificarAtualizacaoTagAsync(tagId, valorBruto, tsNotif);
+                    if (parsedValues.Count == 0)
+                        return;
+
+                    var tags = (await tagService.GetByIdsAsync(parsedValues.Keys)).ToDictionary(tag => tag.Id);
+                    var groupActiveCache = new Dictionary<Guid, bool>();
+                    var valoresAtuais = new Dictionary<Guid, double>();
+                    var leituras = new List<LeituraDTO>();
+                    var notificacoes = new List<(Guid TagId, double Valor, DateTime DataNotificacao)>();
+
+                    foreach (var item in parsedValues)
+                    {
+                        if (!tags.TryGetValue(item.Key, out var tag) || !tag.Monitora)
+                            continue;
+
+                        if (tag.GroupId.HasValue)
+                        {
+                            if (!groupActiveCache.TryGetValue(tag.GroupId.Value, out var isActive))
+                            {
+                                var group = await groupService.GetByIdAsync(tag.GroupId.Value);
+                                isActive = group != null && group.IsActive;
+                                groupActiveCache[tag.GroupId.Value] = isActive;
+                            }
+
+                            if (!isActive)
+                                continue;
+                        }
+
+                        var valorBruto = item.Value.Valor;
+                        _lastFilteredValue[item.Key] = valorBruto;
+                        valoresAtuais[item.Key] = valorBruto;
+
+                        var nowUa = DateTime.UtcNow;
+                        if (!_lastHistorianSave.TryGetValue(item.Key, out var lastSaveUa)
+                            || nowUa - lastSaveUa >= HistorianInterval)
+                        {
+                            _lastHistorianSave[item.Key] = nowUa;
+                            leituras.Add(new LeituraDTO
+                            {
+                                TagId = item.Key,
+                                Valor = valorBruto,
+                                DataLeitura = item.Value.DataLeitura
+                            });
+                        }
+
+                        notificacoes.Add((item.Key, valorBruto, item.Value.DataNotificacao));
+                    }
+
+                    if (valoresAtuais.Count > 0)
+                        await tagService.AtualizarValoresAtuaisAsync(valoresAtuais);
+
+                    if (leituras.Count > 0)
+                        await leituraService.AddRangeAsync(leituras);
+
+                    foreach (var notificacao in notificacoes)
+                    {
+                        await notificador.NotificarAtualizacaoTagAsync(
+                            notificacao.TagId,
+                            notificacao.Valor,
+                            notificacao.DataNotificacao);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Erro ao processar mudança de dados para tag {TagId}", tagId);
+                    _logger.LogError(ex, "Erro ao processar mudanças de dados OPC UA");
                 }
             });
         }
@@ -708,6 +759,7 @@ namespace APsiOpcDaApi.Application.Services
                         using var scope = _scopeFactory.CreateScope();
                         var notificador = scope.ServiceProvider.GetRequiredService<INotificadorSimulacao>();
                         var leituraService = scope.ServiceProvider.GetRequiredService<ILeituraService>();
+                        var leituras = new List<LeituraDTO>();
 
                         foreach (var tag in monitoredTags)
                         {
@@ -749,7 +801,7 @@ namespace APsiOpcDaApi.Application.Services
                                 || now - lastSaveReplay >= HistorianInterval)
                             {
                                 _lastHistorianSave[tag.Id] = now;
-                                await leituraService.AddAsync(new LeituraDTO
+                                leituras.Add(new LeituraDTO
                                 {
                                     TagId = tag.Id,
                                     Valor = tag.ValorAtual.Value,
@@ -757,6 +809,9 @@ namespace APsiOpcDaApi.Application.Services
                                 });
                             }
                         }
+
+                        if (leituras.Count > 0)
+                            await leituraService.AddRangeAsync(leituras);
                     }
 
                     await Task.Delay(updateRateMs, token);
@@ -828,6 +883,7 @@ namespace APsiOpcDaApi.Application.Services
                         if (values == null) return;
 
                         _daGroupLastEventAt[group.Id] = DateTime.UtcNow;
+                        var changes = new List<(Guid TagId, OpcTagDTO OpcValue)>();
 
                         foreach (var v in values)
                         {
@@ -854,9 +910,11 @@ namespace APsiOpcDaApi.Application.Services
 
                             foreach (var tagId in tagIds)
                             {
-                                _ = ProcessOpcDaValueAsync(tagId, dto);
+                                changes.Add((tagId, dto));
                             }
                         }
+
+                        ProcessOpcDaValues(changes);
                     };
 
                     subscription.DataChanged += handler;
@@ -902,62 +960,113 @@ namespace APsiOpcDaApi.Application.Services
 
         private async Task ProcessOpcDaValueAsync(Guid tagId, OpcTagDTO opcValue)
         {
-            if (string.IsNullOrWhiteSpace(opcValue.NodeId) || string.IsNullOrWhiteSpace(opcValue.ValorAtual))
+            ProcessOpcDaValues(new List<(Guid TagId, OpcTagDTO OpcValue)> { (tagId, opcValue) });
+            await Task.CompletedTask;
+        }
+
+        private void ProcessOpcDaValues(IReadOnlyList<(Guid TagId, OpcTagDTO OpcValue)> values)
+        {
+            if (values.Count == 0)
                 return;
 
-            if (!double.TryParse(opcValue.ValorAtual, NumberStyles.Any, CultureInfo.InvariantCulture, out var valorBruto))
-                return;
-
-            using var scope = _scopeFactory.CreateScope();
-            var tagService = scope.ServiceProvider.GetRequiredService<ITagService>();
-            var leituraService = scope.ServiceProvider.GetRequiredService<ILeituraService>();
-            var notificador = scope.ServiceProvider.GetRequiredService<INotificadorSimulacao>();
-            var groupService = scope.ServiceProvider.GetRequiredService<IOpcGroupService>();
-
-            try
+            Task.Run(async () =>
             {
-                var tag = await tagService.GetByIdAsync(tagId);
-                if (tag == null || !tag.Monitora)
-                    return;
+                using var scope = _scopeFactory.CreateScope();
+                var tagService = scope.ServiceProvider.GetRequiredService<ITagService>();
+                var leituraService = scope.ServiceProvider.GetRequiredService<ILeituraService>();
+                var notificador = scope.ServiceProvider.GetRequiredService<INotificadorSimulacao>();
+                var groupService = scope.ServiceProvider.GetRequiredService<IOpcGroupService>();
 
-                if (tag.GroupId.HasValue)
+                try
                 {
-                    var group = await groupService.GetByIdAsync(tag.GroupId.Value);
-                    if (group == null || !group.IsActive)
-                        return;
-                }
-
-                if (!string.Equals(tag.NodeIdOpc, opcValue.NodeId, StringComparison.OrdinalIgnoreCase))
-                    return;
-
-                _lastFilteredValue[tagId] = valorBruto;
-
-                tag.ValorAtual = valorBruto;
-                await tagService.UpdateAsync(tag);
-
-                var timestamp       = opcValue.Timestamp ?? DateTime.UtcNow;
-                var eventReceivedAt = DateTime.UtcNow;
-                _lastOpcEventAt[tagId]    = eventReceivedAt;
-                _lastReplaySentAt[tagId]  = eventReceivedAt;
-
-                if (!_lastHistorianSave.TryGetValue(tagId, out var lastSaveDa)
-                    || eventReceivedAt - lastSaveDa >= HistorianInterval)
-                {
-                    _lastHistorianSave[tagId] = eventReceivedAt;
-                    await leituraService.AddAsync(new LeituraDTO
+                    var parsedValues = new Dictionary<Guid, (OpcTagDTO OpcValue, double Valor)>();
+                    foreach (var item in values)
                     {
-                        TagId        = tagId,
-                        Valor        = valorBruto,
-                        DataLeitura  = timestamp
-                    });
-                }
+                        var opcValue = item.OpcValue;
+                        if (string.IsNullOrWhiteSpace(opcValue.NodeId) || string.IsNullOrWhiteSpace(opcValue.ValorAtual))
+                            continue;
 
-                await notificador.NotificarAtualizacaoTagAsync(tagId, valorBruto, timestamp);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Erro ao processar leitura OPC DA para item '{ItemId}'", opcValue.NodeId);
-            }
+                        if (!double.TryParse(opcValue.ValorAtual, NumberStyles.Any, CultureInfo.InvariantCulture, out var valorBruto))
+                            continue;
+
+                        parsedValues[item.TagId] = (opcValue, valorBruto);
+                    }
+
+                    if (parsedValues.Count == 0)
+                        return;
+
+                    var tags = (await tagService.GetByIdsAsync(parsedValues.Keys)).ToDictionary(tag => tag.Id);
+                    var groupActiveCache = new Dictionary<Guid, bool>();
+                    var valoresAtuais = new Dictionary<Guid, double>();
+                    var leituras = new List<LeituraDTO>();
+                    var notificacoes = new List<(Guid TagId, double Valor, DateTime Timestamp)>();
+
+                    foreach (var item in parsedValues)
+                    {
+                        if (!tags.TryGetValue(item.Key, out var tag) || !tag.Monitora)
+                            continue;
+
+                        var opcValue = item.Value.OpcValue;
+                        if (!string.Equals(tag.NodeIdOpc, opcValue.NodeId, StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        if (tag.GroupId.HasValue)
+                        {
+                            if (!groupActiveCache.TryGetValue(tag.GroupId.Value, out var isActive))
+                            {
+                                var group = await groupService.GetByIdAsync(tag.GroupId.Value);
+                                isActive = group != null && group.IsActive;
+                                groupActiveCache[tag.GroupId.Value] = isActive;
+                            }
+
+                            if (!isActive)
+                                continue;
+                        }
+
+                        var valorBruto = item.Value.Valor;
+                        _lastFilteredValue[item.Key] = valorBruto;
+                        valoresAtuais[item.Key] = valorBruto;
+
+                        var timestamp = opcValue.Timestamp ?? DateTime.UtcNow;
+                        var eventReceivedAt = DateTime.UtcNow;
+                        _lastOpcEventAt[item.Key] = eventReceivedAt;
+                        _lastReplaySentAt[item.Key] = eventReceivedAt;
+
+                        if (!_lastHistorianSave.TryGetValue(item.Key, out var lastSaveDa)
+                            || eventReceivedAt - lastSaveDa >= HistorianInterval)
+                        {
+                            _lastHistorianSave[item.Key] = eventReceivedAt;
+                            leituras.Add(new LeituraDTO
+                            {
+                                TagId = item.Key,
+                                Valor = valorBruto,
+                                DataLeitura = timestamp
+                            });
+                        }
+
+                        notificacoes.Add((item.Key, valorBruto, timestamp));
+                    }
+
+                    if (valoresAtuais.Count > 0)
+                        await tagService.AtualizarValoresAtuaisAsync(valoresAtuais);
+
+                    if (leituras.Count > 0)
+                        await leituraService.AddRangeAsync(leituras);
+
+                    foreach (var notificacao in notificacoes)
+                    {
+                        await notificador.NotificarAtualizacaoTagAsync(
+                            notificacao.TagId,
+                            notificacao.Valor,
+                            notificacao.Timestamp);
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Erro ao processar leituras OPC DA");
+                }
+            });
         }
 
         private void StopOpcDaGroup(Guid groupId)
@@ -1230,4 +1339,3 @@ namespace APsiOpcDaApi.Application.Services
         }
     }
 }
-

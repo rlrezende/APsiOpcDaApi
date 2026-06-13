@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": ".NET 9 API",
+   e tes         "name": ".NET 9 API",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build-api",
