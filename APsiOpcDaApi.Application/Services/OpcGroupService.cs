@@ -31,13 +31,28 @@ namespace APsiOpcDaApi.Application.Services
         public async Task<List<OpcGroupDTO>> GetGroupsByServerIdAsync(Guid serverId)
         {
             var groups = await _groupRepository.GetGroupsByServerIdAsync(serverId);
-            return _mapper.Map<List<OpcGroupDTO>>(groups);
+            return _mapper.Map<List<OpcGroupDTO>>(groups)
+                .OrderBy(group => group.Name)
+                .ThenBy(group => group.Id)
+                .ToList();
         }
 
         public async Task<List<OpcGroupDTO>> GetActiveGroupsAsync()
         {
             var groups = await _groupRepository.GetActiveGroupsAsync();
-            return _mapper.Map<List<OpcGroupDTO>>(groups);
+            return _mapper.Map<List<OpcGroupDTO>>(groups)
+                .OrderBy(group => group.Name)
+                .ThenBy(group => group.Id)
+                .ToList();
+        }
+
+        public override async Task<IEnumerable<OpcGroupDTO>> GetAllAsync()
+        {
+            var groups = await base.GetAllAsync();
+            return groups
+                .OrderBy(group => group.Name)
+                .ThenBy(group => group.Id)
+                .ToList();
         }
 
         public async Task<OpcGroupDTO> GetGroupWithTagsAsync(Guid groupId)
@@ -85,7 +100,12 @@ namespace APsiOpcDaApi.Application.Services
             var group = await _groupRepository.GetGroupWithTagsAsync(groupId);
             if (group == null) return new List<TagDTO>();
 
-            return _mapper.Map<List<TagDTO>>(group.Tags);
+            var orderedTags = group.Tags
+                .OrderBy(tag => tag.Nome)
+                .ThenBy(tag => tag.NodeIdOpc)
+                .ToList();
+
+            return _mapper.Map<List<TagDTO>>(orderedTags);
         }
 
         public async Task<bool> AddTagsToGroupAsync(Guid groupId, List<TagDTO> tagDtos)

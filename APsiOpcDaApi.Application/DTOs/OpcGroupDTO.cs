@@ -18,6 +18,8 @@ public class OpcGroupDTO : IIdentifiable
     public byte Priority { get; set; }
 
     public double Deadband { get; set; }
+    public int HistorianIntervalSeconds { get; set; } = 30;
+    public int AcquisitionMode { get; set; } = 1;
     public bool IsActive { get; set; }
     public int TagCount { get; set; }
 

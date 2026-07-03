@@ -40,7 +40,22 @@ namespace APsiOpcDaApi.API.Logging
 
             public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
 
-            public bool IsEnabled(LogLevel logLevel) => logLevel >= _minLevel && logLevel != LogLevel.None;
+            public bool IsEnabled(LogLevel logLevel)
+            {
+                if (logLevel == LogLevel.None || logLevel < _minLevel)
+                {
+                    return false;
+                }
+
+                if ((_category.StartsWith("Microsoft.EntityFrameworkCore.Database.Command", StringComparison.Ordinal) ||
+                     _category.StartsWith("Npgsql", StringComparison.Ordinal)) &&
+                    logLevel < LogLevel.Warning)
+                {
+                    return false;
+                }
+
+                return true;
+            }
 
             public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
             {

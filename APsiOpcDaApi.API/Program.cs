@@ -10,6 +10,9 @@ using Microsoft.Extensions.Logging;
 using APsiOpcDaApi.API.Hubs;
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
+builder.Logging.AddFilter("Npgsql", LogLevel.Warning);
+
 var shouldLogToFile = string.Equals(Environment.GetEnvironmentVariable("LOG_TO_FILE"), "true", StringComparison.OrdinalIgnoreCase)
     || builder.Configuration.GetValue<bool?>("Logging:FileLoggingEnabled") == true;
 
@@ -44,7 +47,9 @@ if (!string.IsNullOrWhiteSpace(opcApiBaseUrl))
 builder.Services.AddSignalR(options =>
 {
     options.EnableDetailedErrors = true;
-    options.EnableDetailedErrors = true;
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    options.ClientTimeoutInterval = TimeSpan.FromMinutes(2);
+    options.HandshakeTimeout = TimeSpan.FromSeconds(30);
 });
 
 // Formulário grande

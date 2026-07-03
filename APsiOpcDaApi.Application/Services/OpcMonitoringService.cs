@@ -43,22 +43,39 @@ namespace APsiOpcDaApi.Application.Services
         private readonly ConcurrentDictionary<Guid, HashSet<string>> _daGroupItems = new();
         private readonly ConcurrentDictionary<Guid, DaSubscriptionHandle> _daSubscriptions = new();
         private readonly ConcurrentDictionary<Guid, Task> _daReplayTasks = new();
+        private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _daPollingCancellation = new();
+        private readonly ConcurrentDictionary<Guid, Task> _daPollingTasks = new();
         private readonly ConcurrentDictionary<Guid, DateTime> _lastOpcEventAt = new();
         private readonly ConcurrentDictionary<Guid, DateTime> _lastReplaySentAt = new();
         private readonly ConcurrentDictionary<Guid, DateTime> _daGroupLastEventAt = new();
         private readonly ConcurrentDictionary<Guid, double> _lastFilteredValue = new();
 
-        // Controlo do intervalo de gravação no histórico (equivalente ao VB6 HISTORIANTIME=30s)
+        // Controlo do intervalo de gravação no histórico (equivalente ao VB6 HISTORIANTIME)
         private readonly ConcurrentDictionary<Guid, DateTime> _lastHistorianSave = new();
-        private static readonly TimeSpan HistorianInterval = TimeSpan.FromSeconds(30);
+        private const int DefaultHistorianIntervalSeconds = 30;
 
         private readonly IServiceScopeFactory _scopeFactory;
         private ApplicationConfiguration? _applicationConfiguration;
         private readonly HashSet<Guid> _managedSubscriptionGroupIds = new();
+        private const int AcquisitionModePolling = 2;
 
         private bool _disposed = false;
 
         private bool _initialized = false;
+
+        private static bool IsPollingMode(OpcGroupDTO group)
+        {
+            return group.AcquisitionMode == AcquisitionModePolling;
+        }
+
+        private static TimeSpan GetHistorianInterval(OpcGroupDTO? group)
+        {
+            var seconds = group?.HistorianIntervalSeconds > 0
+                ? group.HistorianIntervalSeconds
+                : DefaultHistorianIntervalSeconds;
+
+            return TimeSpan.FromSeconds(Math.Clamp(seconds, 1, 86400));
+        }
 
 
         public OpcMonitoringService(
@@ -572,6 +589,7 @@ namespace APsiOpcDaApi.Application.Services
 
                     var tags = (await tagService.GetByIdsAsync(parsedValues.Keys)).ToDictionary(tag => tag.Id);
                     var groupActiveCache = new Dictionary<Guid, bool>();
+                    var groupHistorianIntervalCache = new Dictionary<Guid, TimeSpan>();
                     var valoresAtuais = new Dictionary<Guid, double>();
                     var leituras = new List<LeituraDTO>();
                     var notificacoes = new List<(Guid TagId, double Valor, DateTime DataNotificacao)>();
@@ -583,11 +601,13 @@ namespace APsiOpcDaApi.Application.Services
 
                         if (tag.GroupId.HasValue)
                         {
-                            if (!groupActiveCache.TryGetValue(tag.GroupId.Value, out var isActive))
+                            var groupId = tag.GroupId.Value;
+                            if (!groupActiveCache.TryGetValue(groupId, out var isActive))
                             {
-                                var group = await groupService.GetByIdAsync(tag.GroupId.Value);
+                                var group = await groupService.GetByIdAsync(groupId);
                                 isActive = group != null && group.IsActive;
-                                groupActiveCache[tag.GroupId.Value] = isActive;
+                                groupActiveCache[groupId] = isActive;
+                                groupHistorianIntervalCache[groupId] = GetHistorianInterval(group);
                             }
 
                             if (!isActive)
@@ -599,8 +619,12 @@ namespace APsiOpcDaApi.Application.Services
                         valoresAtuais[item.Key] = valorBruto;
 
                         var nowUa = DateTime.UtcNow;
+                        var historianInterval = tag.GroupId.HasValue && groupHistorianIntervalCache.TryGetValue(tag.GroupId.Value, out var groupInterval)
+                            ? groupInterval
+                            : GetHistorianInterval(null);
+
                         if (!_lastHistorianSave.TryGetValue(item.Key, out var lastSaveUa)
-                            || nowUa - lastSaveUa >= HistorianInterval)
+                            || nowUa - lastSaveUa >= historianInterval)
                         {
                             _lastHistorianSave[item.Key] = nowUa;
                             leituras.Add(new LeituraDTO
@@ -705,6 +729,20 @@ namespace APsiOpcDaApi.Application.Services
                 _daGroupItems[group.Id] = newSet;
             }
 
+            if (IsPollingMode(group))
+            {
+                if (_daSubscriptions.ContainsKey(group.Id))
+                {
+                    StopOpcDaGroup(group.Id);
+                    _daGroupItems[group.Id] = newSet;
+                }
+
+                EnsureDaPollingTaskRunning(server, group, itemIds, itemTagMap, cancellationToken);
+                return;
+            }
+
+            StopDaPollingGroup(group.Id);
+
             var cts = _daGroupCancellation.GetOrAdd(group.Id, _ => CancellationTokenSource.CreateLinkedTokenSource(cancellationToken));
             if (cts.IsCancellationRequested)
             {
@@ -717,6 +755,116 @@ namespace APsiOpcDaApi.Application.Services
             var subscriptionTask = Task.Run(() => StartOpcDaSubscriptionAsync(server, group, itemIds, itemTagMap, linkedSource.Token), linkedSource.Token);
             _daSubscriptions[group.Id] = new DaSubscriptionHandle { Task = subscriptionTask, Cancellation = linkedSource };
             EnsureReplayTaskRunning(group, linkedSource.Token);
+        }
+
+        private void EnsureDaPollingTaskRunning(
+            OpcServerDTO server,
+            OpcGroupDTO group,
+            IReadOnlyList<string> itemIds,
+            IReadOnlyDictionary<string, IReadOnlyList<Guid>> itemTagMap,
+            CancellationToken token)
+        {
+            if (_daPollingTasks.TryGetValue(group.Id, out var existingTask) &&
+                !existingTask.IsCompleted &&
+                !existingTask.IsCanceled)
+            {
+                return;
+            }
+
+            var cts = _daPollingCancellation.GetOrAdd(group.Id, _ => CancellationTokenSource.CreateLinkedTokenSource(token));
+            if (cts.IsCancellationRequested)
+            {
+                cts.Dispose();
+                cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                _daPollingCancellation[group.Id] = cts;
+            }
+
+            var task = Task.Run(
+                () => PollOpcDaGroupAsync(server, group.Id, itemIds, itemTagMap, cts.Token),
+                cts.Token);
+            _daPollingTasks[group.Id] = task;
+        }
+
+        private async Task PollOpcDaGroupAsync(
+            OpcServerDTO server,
+            Guid groupId,
+            IReadOnlyList<string> itemIds,
+            IReadOnlyDictionary<string, IReadOnlyList<Guid>> itemTagMap,
+            CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    var group = await _groupService.GetByIdAsync(groupId);
+                    if (group == null || !group.IsActive || !IsPollingMode(group))
+                    {
+                        break;
+                    }
+
+                    var values = await _opcDaClientService.ReadValuesAsync(server, itemIds);
+                    var changes = new List<(Guid TagId, OpcTagDTO OpcValue)>();
+
+                    foreach (var value in values)
+                    {
+                        if (string.IsNullOrWhiteSpace(value.NodeId))
+                        {
+                            continue;
+                        }
+
+                        if (!itemTagMap.TryGetValue(value.NodeId, out var tagIds))
+                        {
+                            continue;
+                        }
+
+                        foreach (var tagId in tagIds)
+                        {
+                            changes.Add((tagId, value));
+                        }
+                    }
+
+                    if (changes.Count > 0)
+                    {
+                        _daGroupLastEventAt[groupId] = DateTime.UtcNow;
+                        ProcessOpcDaValues(changes);
+                    }
+
+                    await Task.Delay(Math.Max(200, group.UpdateRate), token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Erro no polling OPC DA do grupo {GroupId}", groupId);
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(2), token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            _daPollingCancellation.TryRemove(groupId, out _);
+            _daPollingTasks.TryRemove(groupId, out _);
+        }
+
+        private void StopDaPollingGroup(Guid groupId)
+        {
+            if (_daPollingCancellation.TryRemove(groupId, out var cts))
+            {
+                try { cts.Cancel(); } catch { }
+                try { cts.Dispose(); } catch { }
+            }
+
+            if (_daPollingTasks.TryRemove(groupId, out var task))
+            {
+                try { task.Wait(TimeSpan.FromSeconds(1)); } catch { }
+            }
         }
 
         private void EnsureReplayTaskRunning(OpcGroupDTO group, CancellationToken token)
@@ -750,6 +898,7 @@ namespace APsiOpcDaApi.Application.Services
                     var now = DateTime.UtcNow;
                     var updateRateMs = Math.Max(200, group.UpdateRate);
                     var staleThreshold = TimeSpan.FromMilliseconds(updateRateMs);
+                    var historianInterval = GetHistorianInterval(group);
 
                     var tags = await _groupService.GetGroupTagsAsync(group.Id);
                     var monitoredTags = tags.Where(t => t.Monitora && t.ValorAtual.HasValue).ToList();
@@ -793,12 +942,12 @@ namespace APsiOpcDaApi.Application.Services
                                 continue;
                             }
 
-                            // Replay notifica SignalR sempre; grava no histórico só a cada HistorianInterval
+                            // Replay notifica SignalR sempre; grava no histórico conforme configurado no grupo.
                             await notificador.NotificarAtualizacaoTagAsync(tag.Id, tag.ValorAtual.Value, now);
                             _lastReplaySentAt[tag.Id] = now;
 
                             if (!_lastHistorianSave.TryGetValue(tag.Id, out var lastSaveReplay)
-                                || now - lastSaveReplay >= HistorianInterval)
+                                || now - lastSaveReplay >= historianInterval)
                             {
                                 _lastHistorianSave[tag.Id] = now;
                                 leituras.Add(new LeituraDTO
@@ -997,6 +1146,7 @@ namespace APsiOpcDaApi.Application.Services
 
                     var tags = (await tagService.GetByIdsAsync(parsedValues.Keys)).ToDictionary(tag => tag.Id);
                     var groupActiveCache = new Dictionary<Guid, bool>();
+                    var groupHistorianIntervalCache = new Dictionary<Guid, TimeSpan>();
                     var valoresAtuais = new Dictionary<Guid, double>();
                     var leituras = new List<LeituraDTO>();
                     var notificacoes = new List<(Guid TagId, double Valor, DateTime Timestamp)>();
@@ -1012,11 +1162,13 @@ namespace APsiOpcDaApi.Application.Services
 
                         if (tag.GroupId.HasValue)
                         {
-                            if (!groupActiveCache.TryGetValue(tag.GroupId.Value, out var isActive))
+                            var groupId = tag.GroupId.Value;
+                            if (!groupActiveCache.TryGetValue(groupId, out var isActive))
                             {
-                                var group = await groupService.GetByIdAsync(tag.GroupId.Value);
+                                var group = await groupService.GetByIdAsync(groupId);
                                 isActive = group != null && group.IsActive;
-                                groupActiveCache[tag.GroupId.Value] = isActive;
+                                groupActiveCache[groupId] = isActive;
+                                groupHistorianIntervalCache[groupId] = GetHistorianInterval(group);
                             }
 
                             if (!isActive)
@@ -1032,8 +1184,12 @@ namespace APsiOpcDaApi.Application.Services
                         _lastOpcEventAt[item.Key] = eventReceivedAt;
                         _lastReplaySentAt[item.Key] = eventReceivedAt;
 
+                        var historianInterval = tag.GroupId.HasValue && groupHistorianIntervalCache.TryGetValue(tag.GroupId.Value, out var groupInterval)
+                            ? groupInterval
+                            : GetHistorianInterval(null);
+
                         if (!_lastHistorianSave.TryGetValue(item.Key, out var lastSaveDa)
-                            || eventReceivedAt - lastSaveDa >= HistorianInterval)
+                            || eventReceivedAt - lastSaveDa >= historianInterval)
                         {
                             _lastHistorianSave[item.Key] = eventReceivedAt;
                             leituras.Add(new LeituraDTO
@@ -1071,6 +1227,8 @@ namespace APsiOpcDaApi.Application.Services
 
         private void StopOpcDaGroup(Guid groupId)
         {
+            StopDaPollingGroup(groupId);
+
             if (_daGroupCancellation.TryRemove(groupId, out var cts))
             {
                 try
@@ -1305,6 +1463,19 @@ namespace APsiOpcDaApi.Application.Services
                 try { await task; } catch { }
             }
             _daReplayTasks.Clear();
+
+            foreach (var cts in _daPollingCancellation.Values)
+            {
+                try { cts.Cancel(); } catch { }
+                finally { cts.Dispose(); }
+            }
+            _daPollingCancellation.Clear();
+
+            foreach (var task in _daPollingTasks.Values)
+            {
+                try { await task.WaitAsync(TimeSpan.FromSeconds(1)); } catch { }
+            }
+            _daPollingTasks.Clear();
 
             _daGroupItems.Clear();
             _daGroupLastEventAt.Clear();

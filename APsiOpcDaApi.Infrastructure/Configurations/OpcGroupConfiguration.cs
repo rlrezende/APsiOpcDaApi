@@ -44,6 +44,14 @@ namespace APsiOpcDaApi.Infrastructure.Configurations
                      .IsRequired()
                      .HasDefaultValue(0.1);
 
+              builder.Property(g => g.HistorianIntervalSeconds)
+                     .IsRequired()
+                     .HasDefaultValue(30);
+
+              builder.Property(g => g.AcquisitionMode)
+                     .IsRequired()
+                     .HasDefaultValue(1);
+
               builder.Property(g => g.IsActive)
                      .IsRequired()
                      .HasDefaultValue(false);

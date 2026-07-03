@@ -17,6 +17,7 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
                 .Where(g => g.ServerId == serverId)
                 .Include(g => g.Server)
                 .Include(g => g.Tags)
+                .OrderBy(g => g.Name)
                 .ToListAsync();
         }
 
@@ -27,6 +28,7 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
                 .Where(g => g.IsActive)
                 .Include(g => g.Server)
                 .Include(g => g.Tags)
+                .OrderBy(g => g.Name)
                 .ToListAsync();
         }
 
@@ -43,6 +45,7 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
             return await _dbSet
                 .AsNoTracking()
                 .Include(group => group.Tags)
+                .OrderBy(group => group.Name)
                 .ToListAsync();
         }
     }

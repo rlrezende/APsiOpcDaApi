@@ -20,6 +20,8 @@ public class OpcGroup : BaseEntity
     public byte Priority { get; set; } = 100;
 
     public double Deadband { get; set; } = 0.1;
+    public int HistorianIntervalSeconds { get; set; } = 30;
+    public int AcquisitionMode { get; set; } = 1; // 1=Subscribe, 2=Polling
     public bool IsActive { get; set; } = false;
 
     // Relacionamento com tags
