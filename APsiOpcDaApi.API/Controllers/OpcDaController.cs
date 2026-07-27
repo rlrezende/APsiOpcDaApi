@@ -35,21 +35,26 @@ namespace APsiOpcDaApi.API.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAll([FromQuery] Guid? unidadeId = null)
         {
-            var servers = await _opcServerService.GetServersByTypeAsync(TipoOpcServer.Da);
-            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
+            if (!HasUnidade(unidadeId))
             {
-                servers = servers.Where(s => s.ModuloId == unidadeId.Value);
+                return BadRequest(new { message = "UnidadeId é obrigatório." });
             }
+
+            var servers = await _opcServerService.GetServersByTypeAsync(TipoOpcServer.Da);
+            servers = servers.Where(s => s.ModuloId == unidadeId!.Value);
             return Ok(servers);
         }
 
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetById(Guid id, [FromQuery] Guid? unidadeId = null)
         {
-            var server = unidadeId.HasValue && unidadeId.Value != Guid.Empty
-                ? await GetDaServerInUnidadeAsync(id, unidadeId.Value)
-                : await _opcServerService.GetByIdAsync(id);
-            if (server == null || server.Tipo != TipoOpcServer.Da)
+            if (!HasUnidade(unidadeId))
+            {
+                return BadRequest(new { message = "UnidadeId é obrigatório." });
+            }
+
+            var server = await GetDaServerInUnidadeAsync(id, unidadeId!.Value);
+            if (server == null)
             {
                 return NotFound();
             }
@@ -64,15 +69,12 @@ namespace APsiOpcDaApi.API.Controllers
             {
                 return BadRequest("Payload inválido.");
             }
-            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
-            {
-                dto.ModuloId = unidadeId.Value;
-            }
-            if (dto.ModuloId == Guid.Empty)
+            if (!HasUnidade(unidadeId))
             {
                 return BadRequest(new { message = "UnidadeId é obrigatório." });
             }
 
+            dto.ModuloId = unidadeId!.Value;
             dto.Tipo = TipoOpcServer.Da;
             dto.Endpoint ??= dto.Host ?? string.Empty;
 
@@ -87,17 +89,19 @@ namespace APsiOpcDaApi.API.Controllers
             {
                 return BadRequest("Payload inválido.");
             }
-            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
+            if (!HasUnidade(unidadeId))
             {
-                var existing = await GetDaServerInUnidadeAsync(id, unidadeId.Value);
-                if (existing == null)
-                {
-                    return NotFound();
-                }
-                dto.ModuloId = unidadeId.Value;
+                return BadRequest(new { message = "UnidadeId é obrigatório." });
+            }
+
+            var existing = await GetDaServerInUnidadeAsync(id, unidadeId!.Value);
+            if (existing == null)
+            {
+                return NotFound();
             }
 
             dto.Id = id;
+            dto.ModuloId = unidadeId.Value;
             dto.Tipo = TipoOpcServer.Da;
             dto.Endpoint ??= dto.Host ?? string.Empty;
 
@@ -108,14 +112,17 @@ namespace APsiOpcDaApi.API.Controllers
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> Delete(Guid id, [FromQuery] Guid? unidadeId = null)
         {
-            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
+            if (!HasUnidade(unidadeId))
             {
-                var existing = await GetDaServerInUnidadeAsync(id, unidadeId.Value);
-                if (existing == null)
-                {
-                    return NotFound();
-                }
+                return BadRequest(new { message = "UnidadeId é obrigatório." });
             }
+
+            var existing = await GetDaServerInUnidadeAsync(id, unidadeId!.Value);
+            if (existing == null)
+            {
+                return NotFound();
+            }
+
             await _opcServerService.DeleteAsync(id);
             return NoContent();
         }
@@ -267,6 +274,9 @@ namespace APsiOpcDaApi.API.Controllers
             var servers = await _opcServerService.GetServersByTypeAsync(TipoOpcServer.Da);
             return servers.FirstOrDefault(s => s.Id == serverId && s.ModuloId == unidadeId);
         }
+
+        private static bool HasUnidade(Guid? unidadeId) =>
+            unidadeId.HasValue && unidadeId.Value != Guid.Empty;
 
         private static string? ExtractClsId(URL? url)
         {
