@@ -21,6 +21,25 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task<List<OpcGroup>> GetGroupsByUnidadeIdAsync(Guid unidadeId, bool activeOnly = false)
+        {
+            var query = _dbSet
+                .AsNoTracking()
+                .Where(group => group.Server != null && group.Server.ModuloId == unidadeId);
+
+            if (activeOnly)
+            {
+                query = query.Where(group => group.IsActive);
+            }
+
+            return await query
+                .Include(group => group.Server)
+                .Include(group => group.Tags)
+                .OrderBy(group => group.Name)
+                .ThenBy(group => group.Id)
+                .ToListAsync();
+        }
+
         public async Task<List<OpcGroup>> GetActiveGroupsAsync()
         {
             return await _dbSet

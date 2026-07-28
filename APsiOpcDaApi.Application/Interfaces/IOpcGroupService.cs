@@ -6,6 +6,7 @@ namespace APsiOpcDaApi.Application.Interfaces
     public interface IOpcGroupService : IGenericService<OpcGroup, OpcGroupDTO>
     {
         Task<List<OpcGroupDTO>> GetGroupsByServerIdAsync(Guid serverId);
+        Task<List<OpcGroupDTO>> GetGroupsByUnidadeIdAsync(Guid unidadeId, bool activeOnly = false);
         Task<List<OpcGroupDTO>> GetActiveGroupsAsync();
         Task<OpcGroupDTO> GetGroupWithTagsAsync(Guid groupId);
         Task<bool> ActivateGroupAsync(Guid groupId);

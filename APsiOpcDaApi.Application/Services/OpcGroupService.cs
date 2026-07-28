@@ -37,6 +37,12 @@ namespace APsiOpcDaApi.Application.Services
                 .ToList();
         }
 
+        public async Task<List<OpcGroupDTO>> GetGroupsByUnidadeIdAsync(Guid unidadeId, bool activeOnly = false)
+        {
+            var groups = await _groupRepository.GetGroupsByUnidadeIdAsync(unidadeId, activeOnly);
+            return _mapper.Map<List<OpcGroupDTO>>(groups);
+        }
+
         public async Task<List<OpcGroupDTO>> GetActiveGroupsAsync()
         {
             var groups = await _groupRepository.GetActiveGroupsAsync();

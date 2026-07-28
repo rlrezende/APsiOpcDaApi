@@ -5,6 +5,7 @@ namespace APsiOpcDaApi.Domain.Interfaces.Repositories
     public interface IOpcGroupRepository : IGenericRepository<OpcGroup>
     {
         Task<List<OpcGroup>> GetGroupsByServerIdAsync(Guid serverId);
+        Task<List<OpcGroup>> GetGroupsByUnidadeIdAsync(Guid unidadeId, bool activeOnly = false);
         Task<List<OpcGroup>> GetActiveGroupsAsync();
         Task<OpcGroup> GetGroupWithTagsAsync(Guid groupId);
         Task<List<OpcGroup>> GetAllWithTagsAsync();

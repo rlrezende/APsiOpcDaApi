@@ -25,16 +25,9 @@ namespace APsiOpcDaApi.API.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAllGroups([FromQuery] Guid? unidadeId = null)
         {
-            var groups = await _groupService.GetAllAsync();
-            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
-            {
-                var serverIds = (await _serverService.GetAllAsync())
-                    .Where(s => s.ModuloId == unidadeId.Value)
-                    .Select(s => s.Id)
-                    .ToHashSet();
-
-                groups = groups.Where(g => serverIds.Contains(g.ServerId));
-            }
+            var groups = unidadeId.HasValue && unidadeId.Value != Guid.Empty
+                ? await _groupService.GetGroupsByUnidadeIdAsync(unidadeId.Value)
+                : await _groupService.GetAllAsync();
 
             return Ok(new { groups });
         }
@@ -58,16 +51,9 @@ namespace APsiOpcDaApi.API.Controllers
         [HttpGet("active")]
         public async Task<IActionResult> GetActiveGroups([FromQuery] Guid? unidadeId = null)
         {
-            var groups = await _groupService.GetActiveGroupsAsync();
-            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
-            {
-                var serverIds = (await _serverService.GetAllAsync())
-                    .Where(s => s.ModuloId == unidadeId.Value)
-                    .Select(s => s.Id)
-                    .ToHashSet();
-
-                groups = groups.Where(g => serverIds.Contains(g.ServerId)).ToList();
-            }
+            var groups = unidadeId.HasValue && unidadeId.Value != Guid.Empty
+                ? await _groupService.GetGroupsByUnidadeIdAsync(unidadeId.Value, activeOnly: true)
+                : await _groupService.GetActiveGroupsAsync();
 
             return Ok(groups);
         }
