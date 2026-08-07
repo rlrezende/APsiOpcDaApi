@@ -900,14 +900,18 @@ namespace APsiOpcDaApi.Application.Services
                     var staleThreshold = TimeSpan.FromMilliseconds(updateRateMs);
                     var historianInterval = GetHistorianInterval(group);
 
-                    var tags = await _groupService.GetGroupTagsAsync(group.Id);
+                    // Cada replay roda em uma Task independente. Resolva os serviços scoped
+                    // dentro da tarefa para não compartilhar o DbContext entre grupos.
+                    using var scope = _scopeFactory.CreateScope();
+                    var groupService = scope.ServiceProvider.GetRequiredService<IOpcGroupService>();
+                    var notificador = scope.ServiceProvider.GetRequiredService<INotificadorSimulacao>();
+                    var leituraService = scope.ServiceProvider.GetRequiredService<ILeituraService>();
+
+                    var tags = await groupService.GetGroupTagsAsync(group.Id);
                     var monitoredTags = tags.Where(t => t.Monitora && t.ValorAtual.HasValue).ToList();
 
                     if (monitoredTags.Count > 0)
                     {
-                        using var scope = _scopeFactory.CreateScope();
-                        var notificador = scope.ServiceProvider.GetRequiredService<INotificadorSimulacao>();
-                        var leituraService = scope.ServiceProvider.GetRequiredService<ILeituraService>();
                         var leituras = new List<LeituraDTO>();
 
                         foreach (var tag in monitoredTags)

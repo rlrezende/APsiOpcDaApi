@@ -544,9 +544,6 @@ namespace APsiOpcDaApi.Infrastructure.Migrations
                     b.Property<Guid?>("GroupId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("GroupId1")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("Monitora")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -598,8 +595,6 @@ namespace APsiOpcDaApi.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("GroupId");
-
-                    b.HasIndex("GroupId1");
 
                     b.HasIndex("NodeId");
 
@@ -676,14 +671,10 @@ namespace APsiOpcDaApi.Infrastructure.Migrations
 
             modelBuilder.Entity("APsiOpcDaApi.Domain.Entities.Tag", b =>
                 {
-                    b.HasOne("APsiOpcDaApi.Domain.Entities.OpcGroup", null)
+                    b.HasOne("APsiOpcDaApi.Domain.Entities.OpcGroup", "Group")
                         .WithMany("Tags")
                         .HasForeignKey("GroupId")
                         .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("APsiOpcDaApi.Domain.Entities.OpcGroup", "Group")
-                        .WithMany()
-                        .HasForeignKey("GroupId1");
 
                     b.HasOne("APsiOpcDaApi.Domain.Entities.OpcNode", "Node")
                         .WithMany()
