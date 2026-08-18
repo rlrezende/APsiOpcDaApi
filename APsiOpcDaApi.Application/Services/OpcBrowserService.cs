@@ -41,11 +41,15 @@ namespace APsiOpcDaApi.Application.Services
             var endpointUrl = server.Endpoint;
 
             var config = CreateApplicationConfiguration();
-            var selectedEndpoint = CoreClientUtils.SelectEndpoint(config, endpointUrl, false);
+            var hasCredentials = !string.IsNullOrWhiteSpace(server.Username);
+            var selectedEndpoint = SelectEndpointForIdentity(config, endpointUrl, hasCredentials);
             var endpointConfig = EndpointConfiguration.Create(config);
             var endpoint = new ConfiguredEndpoint(null, selectedEndpoint, endpointConfig);
+            IUserIdentity identity = hasCredentials
+                ? new UserIdentity(server.Username, server.Password ?? string.Empty)
+                : new UserIdentity(new AnonymousIdentityToken());
 
-            using var session = await Session.Create(config, endpoint, false, "OPC Browser", 60000, null, null);
+            using var session = await Session.Create(config, endpoint, false, "OPC Browser", 60000, identity, null);
 
             string nodeIdStr = string.IsNullOrWhiteSpace(parentNodeId) ? "ns=0;i=85" : parentNodeId;
             var rootNodeId = NodeId.Parse(nodeIdStr);
@@ -62,6 +66,35 @@ namespace APsiOpcDaApi.Application.Services
             };
 
             
+        }
+
+        private static EndpointDescription SelectEndpointForIdentity(
+            ApplicationConfiguration config,
+            string endpointUrl,
+            bool useUsername)
+        {
+            var requiredTokenType = useUsername ? UserTokenType.UserName : UserTokenType.Anonymous;
+            using var discoveryClient = DiscoveryClient.Create(new Uri(endpointUrl));
+            discoveryClient.OperationTimeout = 5000;
+            var endpoints = discoveryClient.GetEndpoints(null);
+
+            var selected = endpoints
+                .Where(endpoint => endpoint.UserIdentityTokens?.Any(policy => policy.TokenType == requiredTokenType) == true)
+                .OrderBy(endpoint => endpoint.SecurityMode == MessageSecurityMode.None ? 0 : 1)
+                .ThenBy(endpoint => endpoint.SecurityLevel)
+                .FirstOrDefault();
+
+            if (selected != null)
+            {
+                return selected;
+            }
+
+            var identityName = useUsername ? "usuário/senha" : "anônima";
+            throw new InvalidOperationException(
+                $"O servidor OPC UA não oferece autenticação {identityName}. " +
+                (useUsername
+                    ? "Verifique as credenciais configuradas."
+                    : "Configure usuário e senha para este servidor."));
         }
 
         private async Task BrowseRecursively(
