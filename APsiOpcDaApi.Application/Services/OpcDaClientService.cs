@@ -45,6 +45,24 @@ namespace APsiOpcDaApi.Application.Services
 
         public bool IsSupported => OperatingSystem.IsWindows();
 
+        public Task<bool> TestConnectionAsync(OpcServerDTO server)
+        {
+            EnsureCanUseDa(server);
+            return Task.Run(() => RunOnSta(() =>
+            {
+                try
+                {
+                    using var scope = CreateConnection(server);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Falha ao testar conexao OPC DA do servidor {ServerId}", server.Id);
+                    return false;
+                }
+            }));
+        }
+
         public Task<OpcBrowseResultDTO> BrowseAsync(OpcServerDTO server, string? itemId = null)
         {
             EnsureCanUseDa(server);

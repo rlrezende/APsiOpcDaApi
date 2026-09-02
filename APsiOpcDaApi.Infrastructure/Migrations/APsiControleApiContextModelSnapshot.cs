@@ -471,6 +471,11 @@ namespace APsiOpcDaApi.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsOnline")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")

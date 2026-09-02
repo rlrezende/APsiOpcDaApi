@@ -12,12 +12,14 @@ namespace APsiOpcDaApi.API.Controllers
         private readonly IOpcDiscoveryService _discoveryService;
         private readonly IOpcServerService _serverService;
         private readonly IOpcGroupService _groupService;
+        private readonly IOpcDaClientService _opcDaClientService;
 
-        public OpcConnectionController(IOpcDiscoveryService discoveryService, IOpcServerService serverService, IOpcGroupService groupService)
+        public OpcConnectionController(IOpcDiscoveryService discoveryService, IOpcServerService serverService, IOpcGroupService groupService, IOpcDaClientService opcDaClientService)
         {
             _discoveryService = discoveryService;
             _serverService = serverService;
             _groupService = groupService;
+            _opcDaClientService = opcDaClientService;
         }
 
         [HttpPost("connect/{serverId}")]
@@ -25,15 +27,25 @@ namespace APsiOpcDaApi.API.Controllers
         {
             try
             {
-                var status = await _discoveryService.GetConnectionStatusAsync(serverId);
+                var server = await _serverService.GetByIdAsync(serverId);
+                if (server == null) return NotFound(new { message = "Servidor OPC DA não encontrado.", serverId });
+
+                server.IsActive = true;
+                var connected = await _opcDaClientService.TestConnectionAsync(server);
+                server.IsConnected = connected;
+                server.IsOnline = connected;
+                server.ConnectionStatus = connected ? "Connected" : "Disconnected";
+                server.LastConnection = connected ? DateTime.UtcNow : server.LastConnection;
+                server.ErrorMessage = connected ? null : "Falha na conexão com o servidor OPC DA.";
+                await _serverService.UpdateAsync(server);
                 
-                if (status.IsConnected)
+                if (connected)
                 {
                     return Ok(new { 
                         message = "Conectado com sucesso", 
                         serverId, 
-                        serverName = status.ServerName,
-                        endpoint = status.Endpoint,
+                        serverName = server.Nome,
+                        endpoint = server.Endpoint,
                         connectedAt = DateTime.UtcNow 
                     });
                 }
@@ -42,7 +54,7 @@ namespace APsiOpcDaApi.API.Controllers
                     return BadRequest(new { 
                         message = "Falha na conexão", 
                         serverId,
-                        error = status.ErrorMessage 
+                        error = server.ErrorMessage
                     });
                 }
             }
@@ -67,6 +79,8 @@ namespace APsiOpcDaApi.API.Controllers
             }
 
             server.IsConnected = false;
+            server.IsOnline = false;
+            server.IsActive = false;
             server.ConnectionStatus = "Disconnected";
             await _serverService.UpdateAsync(server);
 
@@ -84,8 +98,27 @@ namespace APsiOpcDaApi.API.Controllers
         [HttpGet("status/{serverId}")]
         public async Task<IActionResult> GetConnectionStatus(Guid serverId)
         {
-            var status = await _discoveryService.GetConnectionStatusAsync(serverId);
-            return Ok(status);
+            var server = await _serverService.GetByIdAsync(serverId);
+            if (server == null) return NotFound(new { message = "Servidor OPC DA não encontrado.", serverId });
+
+            var connected = await _opcDaClientService.TestConnectionAsync(server);
+            server.IsConnected = connected;
+            server.IsOnline = connected;
+            server.ConnectionStatus = connected ? "Connected" : "Disconnected";
+            server.LastConnection = connected ? DateTime.UtcNow : server.LastConnection;
+            server.ErrorMessage = connected ? null : "Falha na conexão com o servidor OPC DA.";
+            await _serverService.UpdateAsync(server);
+
+            return Ok(new
+            {
+                serverId,
+                serverName = server.Nome,
+                endpoint = server.Endpoint,
+                isConnected = connected,
+                status = server.ConnectionStatus,
+                lastConnection = server.LastConnection,
+                errorMessage = server.ErrorMessage
+            });
         }
 
         [HttpGet("active")]

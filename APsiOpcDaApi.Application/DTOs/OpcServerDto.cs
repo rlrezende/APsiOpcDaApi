@@ -23,6 +23,7 @@ namespace APsiOpcDaApi.Application.DTOs
         public string? Provider { get; set; }
         public string? ConnectionString { get; set; }
         public bool IsConnected { get; set; }
+        public bool IsActive { get; set; }
         public DateTime? LastConnection { get; set; }
         public DateTime? DiscoveryTime { get; set; }
         public bool IsOnline { get; set; }

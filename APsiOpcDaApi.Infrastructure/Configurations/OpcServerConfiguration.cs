@@ -60,6 +60,9 @@ namespace APsiOpcDaApi.Infrastructure.Configurations
             builder.Property(s => s.IsConnected)
                    .HasDefaultValue(false);
 
+            builder.Property(s => s.IsActive)
+                   .HasDefaultValue(false);
+
             builder.Property(s => s.IsOnline)
                    .HasDefaultValue(false);
 

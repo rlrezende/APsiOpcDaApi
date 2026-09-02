@@ -39,6 +39,7 @@ namespace APsiOpcDaApi.Domain.Entities
 
         // Status de conexão / monitoramento
         public bool IsConnected { get; set; } = false;
+        public bool IsActive { get; set; } = false;
         public DateTime? LastConnection { get; set; }
         public DateTime? DiscoveryTime { get; set; }
         public bool IsOnline { get; set; } = false;
