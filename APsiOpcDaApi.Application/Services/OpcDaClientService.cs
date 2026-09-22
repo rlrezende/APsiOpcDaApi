@@ -77,14 +77,28 @@ namespace APsiOpcDaApi.Application.Services
 
         private async Task<IReadOnlyList<OpcTagDTO>> ReadViaBridgeAsync(OpcServerDTO server, List<string> itemIds)
         {
+            if (!TryGetBridgeUrl(out var url))
+            {
+                return Array.Empty<OpcTagDTO>();
+            }
+
+            using var client = new System.Net.Http.HttpClient();
+            return await ReadViaBridgeAsync(server, itemIds, url, client.PostAsync);
+        }
+
+        internal async Task<IReadOnlyList<OpcTagDTO>> ReadViaBridgeAsync(
+            OpcServerDTO server,
+            IReadOnlyList<string> itemIds,
+            string? url,
+            Func<string, System.Net.Http.HttpContent, Task<System.Net.Http.HttpResponseMessage>> postAsync)
+        {
             try
             {
-                if (!TryGetBridgeUrl(out var url))
+                if (string.IsNullOrWhiteSpace(url))
                 {
                     return Array.Empty<OpcTagDTO>();
                 }
 
-                using var client = new System.Net.Http.HttpClient();
                 var payload = new
                 {
                     host = server.Host ?? "localhost",
@@ -94,7 +108,7 @@ namespace APsiOpcDaApi.Application.Services
                 };
                 var json = System.Text.Json.JsonSerializer.Serialize(payload);
                 var content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
-                var response = await client.PostAsync(url.TrimEnd('/') + "/read", content);
+                var response = await postAsync(url.TrimEnd('/') + "/read", content);
                 response.EnsureSuccessStatusCode();
                 var body = await response.Content.ReadAsStringAsync();
                 var bridgeResponse = System.Text.Json.JsonSerializer.Deserialize<BridgeReadResponse>(body);
@@ -155,10 +169,7 @@ namespace APsiOpcDaApi.Application.Services
                 return Task.FromResult<IReadOnlyList<OpcTagDTO>>(Array.Empty<OpcTagDTO>());
             }
 
-            var normalizedIds = itemIds
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var normalizedIds = NormalizeItemIds(itemIds);
 
             if (normalizedIds.Count == 0)
             {
@@ -382,6 +393,26 @@ namespace APsiOpcDaApi.Application.Services
                 throw;
             }
 
+            return MapReadResults(itemIds, results);
+        }
+
+        internal static List<string> NormalizeItemIds(IEnumerable<string>? itemIds)
+        {
+            if (itemIds == null)
+            {
+                return new List<string>();
+            }
+
+            return itemIds
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        internal static IReadOnlyList<OpcTagDTO> MapReadResults(
+            IReadOnlyList<string> itemIds,
+            ItemValueResult[]? results)
+        {
             var tags = new List<OpcTagDTO>(itemIds.Count);
             for (var i = 0; i < itemIds.Count; i++)
             {

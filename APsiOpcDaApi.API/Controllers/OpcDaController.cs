@@ -7,9 +7,6 @@ using APsiOpcDaApi.Application.Interfaces;
 using APsiOpcDaApi.Domain.Enum;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Opc;
-using Opc.Da;
-using OpcCom;
 
 namespace APsiOpcDaApi.API.Controllers
 {
@@ -21,15 +18,18 @@ namespace APsiOpcDaApi.API.Controllers
         private readonly IOpcServerService _opcServerService;
         private readonly IOpcBrowserService _opcBrowserService;
         private readonly IOpcDaClientService _opcDaClientService;
+        private readonly IOpcDaServerEnumerator _opcDaServerEnumerator;
 
         public OpcDaController(
             IOpcServerService opcServerService,
             IOpcBrowserService opcBrowserService,
-            IOpcDaClientService opcDaClientService)
+            IOpcDaClientService opcDaClientService,
+            IOpcDaServerEnumerator opcDaServerEnumerator)
         {
             _opcServerService = opcServerService;
             _opcBrowserService = opcBrowserService;
             _opcDaClientService = opcDaClientService;
+            _opcDaServerEnumerator = opcDaServerEnumerator;
         }
 
         [HttpGet]
@@ -148,35 +148,22 @@ namespace APsiOpcDaApi.API.Controllers
                     .GroupBy(s => $"{(s.Host ?? string.Empty).ToLowerInvariant()}|{(s.ProgId ?? s.Endpoint ?? string.Empty).ToLowerInvariant()}")
                     .ToDictionary(g => g.Key, g => g.First());
 
-                using var enumerator = new ServerEnumerator();
-                var servers = enumerator.GetAvailableServers(Specification.COM_DA_20, targetHost, null)
-                    ?? Array.Empty<Opc.Server>();
-
                 var discovered = new List<OpcServerDTO>();
 
-                foreach (var opcServer in servers.OfType<Opc.Da.Server>())
+                foreach (var opcServer in _opcDaServerEnumerator.Enumerate(targetHost))
                 {
-                    using var serverInstance = opcServer;
-
-                    var url = serverInstance.Url;
-                    var endpoint = url != null
-                        ? $"{url.Scheme}://{url.HostName}/{url.Path}".TrimEnd('/')
-                        : string.Empty;
-
-                    var progId = ExtractProgId(url);
-                    var clsId = ExtractClsId(url);
                     var keyHost = targetHost.ToLowerInvariant();
-                    var keyProgId = (progId ?? endpoint ?? string.Empty).ToLowerInvariant();
+                    var keyProgId = (opcServer.ProgId ?? opcServer.Endpoint ?? string.Empty).ToLowerInvariant();
                     var dictionaryKey = $"{keyHost}|{keyProgId}";
 
                     var dto = new OpcServerDTO
                     {
-                        Nome = serverInstance.Name ?? progId ?? "Servidor OPC DA",
-                        Endpoint = endpoint,
+                        Nome = opcServer.Nome ?? "Servidor OPC DA",
+                        Endpoint = opcServer.Endpoint ?? string.Empty,
                         Host = targetHost,
-                        ProgId = progId ?? endpoint,
-                        ClsId = clsId,
-                        Descricao = serverInstance.Name,
+                        ProgId = opcServer.ProgId,
+                        ClsId = opcServer.ClsId,
+                        Descricao = opcServer.Descricao,
                         Tipo = TipoOpcServer.Da,
                         ModuloId = unidadeId,
                         DiscoveryTime = DateTime.UtcNow,
@@ -247,28 +234,6 @@ namespace APsiOpcDaApi.API.Controllers
             return Ok(result);
         }
 
-        private static string? ExtractProgId(URL? url)
-        {
-            if (url?.Path == null)
-            {
-                return null;
-            }
-
-            var segments = url.Path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            if (segments.Length == 0)
-            {
-                return null;
-            }
-
-            var first = segments[0];
-            if (first.StartsWith("{") && first.EndsWith("}", StringComparison.Ordinal))
-            {
-                return null;
-            }
-
-            return first;
-        }
-
         private async Task<OpcServerDTO?> GetDaServerInUnidadeAsync(Guid serverId, Guid unidadeId)
         {
             var servers = await _opcServerService.GetServersByTypeAsync(TipoOpcServer.Da);
@@ -278,26 +243,5 @@ namespace APsiOpcDaApi.API.Controllers
         private static bool HasUnidade(Guid? unidadeId) =>
             unidadeId.HasValue && unidadeId.Value != Guid.Empty;
 
-        private static string? ExtractClsId(URL? url)
-        {
-            if (url?.Path == null)
-            {
-                return null;
-            }
-
-            var segments = url.Path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            var last = segments.LastOrDefault();
-            if (string.IsNullOrWhiteSpace(last))
-            {
-                return null;
-            }
-
-            if (last.StartsWith("{") && last.EndsWith("}", StringComparison.Ordinal))
-            {
-                return last.Trim('{', '}');
-            }
-
-            return null;
-        }
     }
 }

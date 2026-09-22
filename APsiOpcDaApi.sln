@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "APsiOpcDaApi.Infrastructure
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "APsiOpcDaApi.API", "APsiOpcDaApi.API\APsiOpcDaApi.API.csproj", "{6F257CCD-72A1-47DA-ABCA-35C4AF25201E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "APsiOpcDaApi.Tests", "APsiOpcDaApi.Tests\APsiOpcDaApi.Tests.csproj", "{5734C9C2-AF0A-4698-87AC-A0627E1C9705}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,6 +38,9 @@ Global
 		{6F257CCD-72A1-47DA-ABCA-35C4AF25201E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6F257CCD-72A1-47DA-ABCA-35C4AF25201E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6F257CCD-72A1-47DA-ABCA-35C4AF25201E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5734C9C2-AF0A-4698-87AC-A0627E1C9705}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5734C9C2-AF0A-4698-87AC-A0627E1C9705}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5734C9C2-AF0A-4698-87AC-A0627E1C9705}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5734C9C2-AF0A-4698-87AC-A0627E1C9705}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
-

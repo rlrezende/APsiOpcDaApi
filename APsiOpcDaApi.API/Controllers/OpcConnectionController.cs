@@ -23,13 +23,19 @@ namespace APsiOpcDaApi.API.Controllers
         }
 
         [HttpPost("connect/{serverId}")]
-        public async Task<IActionResult> ConnectToServer(Guid serverId)
+        public async Task<IActionResult> ConnectToServer(Guid serverId, [FromQuery] Guid? unidadeId = null)
         {
             try
             {
                 var server = await _serverService.GetByIdAsync(serverId);
                 if (server == null) return NotFound(new { message = "Servidor OPC DA não encontrado.", serverId });
 
+                if (unidadeId.HasValue && unidadeId.Value != Guid.Empty && server.ModuloId != unidadeId.Value)
+                {
+                    return StatusCode(403, new { message = "Servidor OPC nÃ£o pertence Ã  unidade selecionada.", serverId, unidadeId });
+                }
+
+                // IsActive expresses the desired monitoring/retry state, not the instantaneous connection state.
                 server.IsActive = true;
                 var connected = await _opcDaClientService.TestConnectionAsync(server);
                 server.IsConnected = connected;
@@ -96,10 +102,15 @@ namespace APsiOpcDaApi.API.Controllers
         }
 
         [HttpGet("status/{serverId}")]
-        public async Task<IActionResult> GetConnectionStatus(Guid serverId)
+        public async Task<IActionResult> GetConnectionStatus(Guid serverId, [FromQuery] Guid? unidadeId = null)
         {
             var server = await _serverService.GetByIdAsync(serverId);
             if (server == null) return NotFound(new { message = "Servidor OPC DA não encontrado.", serverId });
+
+            if (unidadeId.HasValue && unidadeId.Value != Guid.Empty && server.ModuloId != unidadeId.Value)
+            {
+                return StatusCode(403, new { message = "Servidor OPC nÃ£o pertence Ã  unidade selecionada.", serverId, unidadeId });
+            }
 
             var connected = await _opcDaClientService.TestConnectionAsync(server);
             server.IsConnected = connected;
@@ -129,4 +140,3 @@ namespace APsiOpcDaApi.API.Controllers
         }
     }
 }
-

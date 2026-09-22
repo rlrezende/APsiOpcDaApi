@@ -59,7 +59,7 @@ builder.Services.Configure<FormOptions>(options =>
 });
 
 // Serviços da aplicação
-builder.Services.ConfigureServices(builder.Configuration);
+builder.Services.ConfigureServices(builder.Configuration, builder.Environment);
 
 // CORS para SignalR e frontend
 builder.Services.AddCors(options =>
@@ -163,3 +163,5 @@ app.MapHub<TagSimulacaoHub>("/hub/tagsimulacao");
 
 app.Run();
 
+// Permite hospedar a API em memória e extrair o contrato sem iniciar I/O externo.
+public partial class Program { }

@@ -18,7 +18,10 @@ namespace APsiOpcDaApi.API.Extensions
 {
     public static class ServiceExtensions
     {
-        public static void ConfigureServices(this IServiceCollection services, IConfiguration configuration)
+        public static void ConfigureServices(
+            this IServiceCollection services,
+            IConfiguration configuration,
+            IHostEnvironment environment)
         {
             // ConfiguraÃ§Ã£o do DbContext com Lazy Loading habilitado
             services.AddDbContext<APsiOpcDaApiContext>(options =>
@@ -36,7 +39,7 @@ namespace APsiOpcDaApi.API.Extensions
             RegisterRepositories(services);
 
             // Registro dos ServiÃ§os
-            RegisterServices(services);
+            RegisterServices(services, environment);
 
             // ConfiguraÃ§Ã£o da autenticaÃ§Ã£o JWT
             ConfigureAuthentication(services, configuration);
@@ -109,7 +112,7 @@ namespace APsiOpcDaApi.API.Extensions
             services.AddScoped<IOpcDiscoveredServerRepository, OpcDiscoveredServerRepository>();
         }
 
-        private static void RegisterServices(IServiceCollection services)
+        private static void RegisterServices(IServiceCollection services, IHostEnvironment environment)
         {
             services.AddScoped(typeof(IGenericService<,>), typeof(GenericService<,>));
             services.AddScoped<ITagService, TagService>();
@@ -117,11 +120,15 @@ namespace APsiOpcDaApi.API.Extensions
             services.AddHttpContextAccessor();
             services.AddScoped<IUserContextService, UserContextService>();
             services.AddScoped<INotificadorSimulacao, SignalRNotificadorSimulacao>();
-            services.AddHostedService<OpcMonitorBackgroundService>();
+            if (!environment.IsEnvironment("Testing"))
+            {
+                services.AddHostedService<OpcMonitorBackgroundService>();
+            }
             services.AddScoped<IOpcMonitoringService, OpcMonitoringService>();
             services.AddScoped<IOpcServerService, OpcServerService>();
             services.AddScoped<IOpcNodeService, OpcNodeService>();
             services.AddScoped<IOpcDaClientService, OpcDaClientService>();
+            services.AddScoped<IOpcDaServerEnumerator, OpcDaServerEnumerator>();
             services.AddScoped<IOpcBrowserService, OpcBrowserService>();
             services.AddScoped<IOpcGroupService, OpcGroupService>();
             services.AddScoped<IOpcDiscoveryService, OpcDiscoveryService>();
@@ -173,5 +180,3 @@ namespace APsiOpcDaApi.API.Extensions
         }
     }
 }
-
-
