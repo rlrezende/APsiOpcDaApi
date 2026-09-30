@@ -21,6 +21,7 @@ namespace APsiOpcDaApi.Application.Services
         private static readonly PropertyID[] DefaultPropertyIds;
 
         private readonly ILogger<OpcDaClientService> _logger;
+        private readonly bool _isWindows;
 
         private const string BridgeEnvVar = "OPC_DA_BRIDGE_URL";
 
@@ -39,11 +40,17 @@ namespace APsiOpcDaApi.Application.Services
         }
 
         public OpcDaClientService(ILogger<OpcDaClientService> logger)
+            : this(logger, OperatingSystem.IsWindows())
         {
-            _logger = logger;
         }
 
-        public bool IsSupported => OperatingSystem.IsWindows();
+        internal OpcDaClientService(ILogger<OpcDaClientService> logger, bool isWindows)
+        {
+            _logger = logger;
+            _isWindows = isWindows;
+        }
+
+        public bool IsSupported => _isWindows;
 
         public Task<bool> TestConnectionAsync(OpcServerDTO server)
         {

@@ -14,8 +14,7 @@ public sealed class OpcDaClientServiceCharacterizationTests
     [Fact]
     public void BrowseAsync_SistemaNaoWindows_LancaPlatformNotSupportedAntesDeConectar()
     {
-        Assert.False(OperatingSystem.IsWindows());
-        var service = CreateService();
+        var service = new OpcDaClientService(NullLogger<OpcDaClientService>.Instance, isWindows: false);
         Assert.False(service.IsSupported);
 
         var exception = Assert.Throws<PlatformNotSupportedException>(
@@ -27,13 +26,12 @@ public sealed class OpcDaClientServiceCharacterizationTests
     [Fact]
     public void ReadValuesAsync_SistemaNaoWindowsComBridgeConfigurada_LancaPlatformNotSupportedAntesDaBridge()
     {
-        Assert.False(OperatingSystem.IsWindows());
         var previousBridgeUrl = Environment.GetEnvironmentVariable("OPC_DA_BRIDGE_URL");
         Environment.SetEnvironmentVariable("OPC_DA_BRIDGE_URL", "uri-invalida-sem-rede");
 
         try
         {
-            var service = CreateService();
+            var service = new OpcDaClientService(NullLogger<OpcDaClientService>.Instance, isWindows: false);
 
             var exception = Assert.Throws<PlatformNotSupportedException>(
                 (Action)(() => _ = service.ReadValuesAsync(CreateServerWithoutConnectionData(), ["Channel.Device.Tag"])));
@@ -49,8 +47,7 @@ public sealed class OpcDaClientServiceCharacterizationTests
     [Fact]
     public void WriteValueAsync_SistemaNaoWindows_LancaPlatformNotSupportedAntesDeConectar()
     {
-        Assert.False(OperatingSystem.IsWindows());
-        var service = CreateService();
+        var service = new OpcDaClientService(NullLogger<OpcDaClientService>.Instance, isWindows: false);
 
         var exception = Assert.Throws<PlatformNotSupportedException>(
             (Action)(() => _ = service.WriteValueAsync(CreateServerWithoutConnectionData(), "Channel.Device.Tag", 12.5d)));
@@ -140,8 +137,21 @@ public sealed class OpcDaClientServiceCharacterizationTests
         Assert.Equal(expectedTimestamp, tag.Timestamp);
     }
 
-    private static OpcDaClientService CreateService() =>
-        new(NullLogger<OpcDaClientService>.Instance);
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void IsSupported_PlataformaControlada_RefleteSuporteWindows(bool isWindows)
+    {
+        var service = new OpcDaClientService(NullLogger<OpcDaClientService>.Instance, isWindows);
+        Assert.Equal(isWindows, service.IsSupported);
+    }
+
+    [Fact]
+    public void IsSupported_ConstrutorPublico_UsaPlataformaReal()
+    {
+        var service = new OpcDaClientService(NullLogger<OpcDaClientService>.Instance);
+        Assert.Equal(OperatingSystem.IsWindows(), service.IsSupported);
+    }
 
     private static OpcServerDTO CreateServerWithoutConnectionData() => new()
     {
