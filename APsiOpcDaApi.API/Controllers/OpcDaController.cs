@@ -128,7 +128,7 @@ namespace APsiOpcDaApi.API.Controllers
         }
 
         [HttpGet("discover-local")]
-        public async Task<IActionResult> DiscoverLocal([FromQuery] Guid unidadeId, [FromQuery] string? host = null)
+        public async Task<IActionResult> DiscoverLocal([FromQuery] Guid unidadeId, [FromQuery] string? host = null, [FromQuery] string? progId = null)
         {
             if (!_opcServerService.IsOpcDaSupported())
             {
@@ -150,7 +150,8 @@ namespace APsiOpcDaApi.API.Controllers
 
                 var discovered = new List<OpcServerDTO>();
 
-                foreach (var opcServer in _opcDaServerEnumerator.Enumerate(targetHost))
+                foreach (var opcServer in _opcDaServerEnumerator.Enumerate(targetHost)
+                    .Where(s => string.IsNullOrWhiteSpace(progId) || string.Equals(s.ProgId, progId.Trim(), StringComparison.OrdinalIgnoreCase)))
                 {
                     var keyHost = targetHost.ToLowerInvariant();
                     var keyProgId = (opcServer.ProgId ?? opcServer.Endpoint ?? string.Empty).ToLowerInvariant();

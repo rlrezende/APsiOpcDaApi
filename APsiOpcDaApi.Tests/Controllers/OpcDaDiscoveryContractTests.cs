@@ -251,6 +251,32 @@ public sealed class OpcDaDiscoveryContractTests
             returned[2].GetProperty("$ref").GetString());
     }
 
+    [Fact]
+    public async Task DiscoverLocal_ProgIdFilter_SavesOnlyMatchingServerOnRequestedHost()
+    {
+        var enumerator = new FakeOpcDaServerEnumerator
+        {
+            Servers = [
+                new OpcDaDiscoveredServerDTO { Nome = "Target", Endpoint = "Factory.Target", ProgId = "Factory.Target" },
+                new OpcDaDiscoveredServerDTO { Nome = "Other", Endpoint = "Factory.Other", ProgId = "Factory.Other" }
+            ]
+        };
+        await using var factory = new OpcDaApiFactory(
+            server: null, opcDaClient: new FakeOpcDaClientService(),
+            isOpcDaSupported: true, opcDaServerEnumerator: enumerator);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync(
+            $"/api/opcda/discover-local?unidadeId={UnidadeId}&host=10.1.2.3&progId=%20factory.target%20");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(new[] { "10.1.2.3" }, enumerator.RequestedHosts);
+        var saved = Assert.Single(factory.AddedServers);
+        Assert.Equal("Factory.Target", saved.ProgId);
+        Assert.Equal("10.1.2.3", saved.Host);
+        Assert.Equal(UnidadeId, saved.ModuloId);
+    }
+
     private static async Task AssertMessageAsync(HttpResponseMessage response, string expected)
     {
         await using var stream = await response.Content.ReadAsStreamAsync();
