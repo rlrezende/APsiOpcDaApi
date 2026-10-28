@@ -6,6 +6,7 @@ namespace APsiOpcDaApi.Application.Interfaces
     public interface IUserContextService
     {
         Guid? GetEmpresaId();
+        bool HasAccessToResource(object resource) => false;
     }
 }
 

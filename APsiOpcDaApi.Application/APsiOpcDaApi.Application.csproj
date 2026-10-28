@@ -22,5 +22,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Include="../../APsiOpcDaBridge/PrivatePipeProtocol.cs" Link="PrivateIpc/PrivatePipeProtocol.cs" />
+    <Compile Include="../../APsiOpcDaBridge/PrivateServicePipe.cs" Link="PrivateIpc/PrivateServicePipe.cs" />
+  </ItemGroup>
+<ItemGroup><Compile Include="../../APsiCLicensing/contracts/OperationAdmissionPort.cs" Link="Licensing/OperationAdmissionPort.cs" /></ItemGroup>
 </Project>
 

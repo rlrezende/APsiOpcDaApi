@@ -7,7 +7,23 @@ namespace APsiOpcDaApi.Infrastructure
 {
     public class APsiOpcDaApiContext : DbContext
     {
-        public APsiOpcDaApiContext(DbContextOptions<APsiOpcDaApiContext> options) : base(options) { }
+        private readonly IQuotaSaveBoundary? _quota;
+        public APsiOpcDaApiContext(DbContextOptions<APsiOpcDaApiContext> options, IQuotaSaveBoundary? quota = null) : base(options) { _quota = quota; }
+        public override int SaveChanges(bool acceptAllChangesOnSuccess) =>
+            _quota is null ? base.SaveChanges(acceptAllChangesOnSuccess) :
+                _quota.Save(this, () => base.SaveChanges(acceptAllChangesOnSuccess));
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+        {
+            if (_quota is null) return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(_quota.Save(this, () =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var result = base.SaveChanges(acceptAllChangesOnSuccess);
+                cancellationToken.ThrowIfCancellationRequested();
+                return result;
+            }));
+        }
 
         public DbSet<Tag> Tag { get; set; }
         public DbSet<Controle> Controle { get; set; }

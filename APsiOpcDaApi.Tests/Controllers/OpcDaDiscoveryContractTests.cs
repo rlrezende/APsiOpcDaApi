@@ -14,7 +14,7 @@ public sealed class OpcDaDiscoveryContractTests
     private static readonly Guid UnidadeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
 
     [Fact]
-    public async Task DiscoverLocal_PlataformaNaoSuportada_RetornaBadRequestAntesDeValidarUnidade()
+    public async Task DiscoverLocal_UnidadeVazia_NegaAntesDeConsultarPlataforma()
     {
         await using var factory = new OpcDaApiFactory(
             server: null,
@@ -24,11 +24,9 @@ public sealed class OpcDaDiscoveryContractTests
 
         var response = await client.GetAsync("/api/opcda/discover-local?unidadeId=00000000-0000-0000-0000-000000000000&host=nao-deve-ser-acessado");
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        await AssertMessageAsync(
-            response,
-            "Descoberta OPC DA só é suportada em ambiente Windows.");
-        factory.OpcServerService.Verify(service => service.IsOpcDaSupported(), Times.Once);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Contains("SCOPE_DENIED", await response.Content.ReadAsStringAsync());
+        factory.OpcServerService.Verify(service => service.IsOpcDaSupported(), Times.Never);
         factory.OpcServerService.Verify(
             service => service.GetServersByTypeAsync(It.IsAny<TipoOpcServer>()),
             Times.Never);
@@ -36,7 +34,7 @@ public sealed class OpcDaDiscoveryContractTests
     }
 
     [Fact]
-    public async Task DiscoverLocal_UnidadeVaziaEmPlataformaSuportada_RetornaBadRequestSemConsultarServidores()
+    public async Task DiscoverLocal_UnidadeVaziaEmPlataformaSuportada_NegaAntesDeConsultarServidores()
     {
         await using var factory = new OpcDaApiFactory(
             server: null,
@@ -46,9 +44,9 @@ public sealed class OpcDaDiscoveryContractTests
 
         var response = await client.GetAsync("/api/opcda/discover-local?unidadeId=00000000-0000-0000-0000-000000000000&host=nao-deve-ser-acessado");
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        await AssertMessageAsync(response, "UnidadeId é obrigatório.");
-        factory.OpcServerService.Verify(service => service.IsOpcDaSupported(), Times.Once);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Contains("SCOPE_DENIED", await response.Content.ReadAsStringAsync());
+        factory.OpcServerService.Verify(service => service.IsOpcDaSupported(), Times.Never);
         factory.OpcServerService.Verify(
             service => service.GetServersByTypeAsync(It.IsAny<TipoOpcServer>()),
             Times.Never);

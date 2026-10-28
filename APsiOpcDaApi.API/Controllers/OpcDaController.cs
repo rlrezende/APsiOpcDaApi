@@ -1,3 +1,5 @@
+using APsiC.Licensing.Infrastructure;
+using APsiOpcDaApi.API.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,11 +13,11 @@ using Microsoft.AspNetCore.Mvc;
 namespace APsiOpcDaApi.API.Controllers
 {
     [ApiController]
-    [AllowAnonymous]
     [Route("api/opcda")]
     public class OpcDaController : ControllerBase
     {
         private readonly IOpcServerService _opcServerService;
+        private readonly QuotaHttpMutation? _mutations;
         private readonly IOpcBrowserService _opcBrowserService;
         private readonly IOpcDaClientService _opcDaClientService;
         private readonly IOpcDaServerEnumerator _opcDaServerEnumerator;
@@ -24,9 +26,10 @@ namespace APsiOpcDaApi.API.Controllers
             IOpcServerService opcServerService,
             IOpcBrowserService opcBrowserService,
             IOpcDaClientService opcDaClientService,
-            IOpcDaServerEnumerator opcDaServerEnumerator)
+            IOpcDaServerEnumerator opcDaServerEnumerator, QuotaHttpMutation? mutations = null)
         {
             _opcServerService = opcServerService;
+            _mutations = mutations;
             _opcBrowserService = opcBrowserService;
             _opcDaClientService = opcDaClientService;
             _opcDaServerEnumerator = opcDaServerEnumerator;
@@ -78,6 +81,16 @@ namespace APsiOpcDaApi.API.Controllers
             dto.Tipo = TipoOpcServer.Da;
             dto.Endpoint ??= dto.Host ?? string.Empty;
 
+            if (_mutations is not null)
+                return await _mutations.ExecuteAsync(this, dto, async () =>
+                {
+                    var saved = await _opcServerService.AddAsync(dto);
+                    saved.Password = null;
+                    saved.ConnectionString = null;
+                    var location = Url.Action(nameof(GetById), new { id = saved.Id, unidadeId = saved.ModuloId });
+                    return new QuotaHttpResponse(201, QuotaHttpMutation.Serialize(saved), saved.ModuloId, location);
+                });
+
             var created = await _opcServerService.AddAsync(dto);
             return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
         }
@@ -85,6 +98,22 @@ namespace APsiOpcDaApi.API.Controllers
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] OpcServerDTO dto, [FromQuery] Guid? unidadeId = null)
         {
+            if (dto is null) return BadRequest("Payload inválido.");
+                if (!HasUnidade(unidadeId)) return BadRequest(new { message = "UnidadeId é obrigatório." });
+            if (_mutations is not null)
+                return await _mutations.ExecuteAsync(this, new { id, unidadeId, value = dto }, async () =>
+                {
+                    var existing = await _opcServerService.GetByIdAsync(id);
+                    if (existing is null || (unidadeId.HasValue && unidadeId.Value != Guid.Empty && existing.ModuloId != unidadeId.Value)) return null;
+                    if (existing.Tipo != TipoOpcServer.Da) return null;
+                    dto.Id = id;
+                    dto.ModuloId = unidadeId.HasValue && unidadeId.Value != Guid.Empty ? unidadeId.Value : existing.ModuloId;
+                    dto.Tipo = TipoOpcServer.Da;
+                    dto.Endpoint ??= dto.Host ?? string.Empty;
+                    await _opcServerService.UpdateAsync(dto);
+                    return new QuotaHttpResponse(204, null, dto.ModuloId);
+                });
+
             if (dto == null)
             {
                 return BadRequest("Payload inválido.");
@@ -112,6 +141,17 @@ namespace APsiOpcDaApi.API.Controllers
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> Delete(Guid id, [FromQuery] Guid? unidadeId = null)
         {
+                if (!HasUnidade(unidadeId)) return BadRequest(new { message = "UnidadeId é obrigatório." });
+            if (_mutations is not null)
+                return await _mutations.ExecuteAsync(this, new { id, unidadeId }, async () =>
+                {
+                    var existing = await _opcServerService.GetByIdAsync(id);
+                    if (existing is null || (unidadeId.HasValue && unidadeId.Value != Guid.Empty && existing.ModuloId != unidadeId.Value)) return null;
+                    if (existing.Tipo != TipoOpcServer.Da) return null;
+                    await _opcServerService.DeleteAsync(id);
+                    return new QuotaHttpResponse(204, null, existing.ModuloId);
+                });
+
             if (!HasUnidade(unidadeId))
             {
                 return BadRequest(new { message = "UnidadeId é obrigatório." });
@@ -187,7 +227,7 @@ namespace APsiOpcDaApi.API.Controllers
                     host = targetHost
                 });
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not APsiC.Operations.OperationAdmissionDeniedException and not APsiC.Licensing.QuotaMutationException and not APsiOpcDaApi.Application.Exceptions.ResourceScopeDeniedException)
             {
                 return StatusCode(500, new { message = "Erro ao descobrir servidores OPC DA.", error = ex.Message });
             }
@@ -213,7 +253,7 @@ namespace APsiOpcDaApi.API.Controllers
                     ? Ok(new { success = true, itemId = dto.ItemId, value = dto.Value })
                     : StatusCode(500, new { message = "Write falhou no servidor OPC DA.", itemId = dto.ItemId });
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not APsiC.Operations.OperationAdmissionDeniedException and not APsiC.Licensing.QuotaMutationException and not APsiOpcDaApi.Application.Exceptions.ResourceScopeDeniedException)
             {
                 return StatusCode(500, new { message = "Erro ao escrever no servidor OPC DA.", error = ex.Message });
             }

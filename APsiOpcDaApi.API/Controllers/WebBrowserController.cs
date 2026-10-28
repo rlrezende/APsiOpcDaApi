@@ -10,7 +10,6 @@ namespace APsiOpcDaApi.API.Controllers
     /// Controller para operações de manipulação web que requerem arquitetura x86
     /// </summary>
     [ApiController]
-    [AllowAnonymous]
     [Route("api/[controller]")]
     public class WebBrowserController : ControllerBase
     {
@@ -38,7 +37,7 @@ namespace APsiOpcDaApi.API.Controllers
                     environment = Environment.Is64BitProcess ? "x64" : "x86"
                 });
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not APsiC.Operations.OperationAdmissionDeniedException and not APsiC.Licensing.QuotaMutationException and not APsiOpcDaApi.Application.Exceptions.ResourceScopeDeniedException)
             {
                 return BadRequest(new { error = ex.Message });
             }
@@ -66,7 +65,7 @@ namespace APsiOpcDaApi.API.Controllers
             {
                 return BadRequest(new { error = ex.Message, requiresX86 = true });
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not APsiC.Operations.OperationAdmissionDeniedException and not APsiC.Licensing.QuotaMutationException and not APsiOpcDaApi.Application.Exceptions.ResourceScopeDeniedException)
             {
                 return StatusCode(500, new { error = ex.Message });
             }
@@ -94,7 +93,7 @@ namespace APsiOpcDaApi.API.Controllers
             {
                 return BadRequest(new { error = ex.Message, requiresX86 = true });
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not APsiC.Operations.OperationAdmissionDeniedException and not APsiC.Licensing.QuotaMutationException and not APsiOpcDaApi.Application.Exceptions.ResourceScopeDeniedException)
             {
                 return StatusCode(500, new { error = ex.Message });
             }
@@ -122,7 +121,7 @@ namespace APsiOpcDaApi.API.Controllers
             {
                 return BadRequest(new { error = ex.Message, requiresX86 = true });
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not APsiC.Operations.OperationAdmissionDeniedException and not APsiC.Licensing.QuotaMutationException and not APsiOpcDaApi.Application.Exceptions.ResourceScopeDeniedException)
             {
                 return StatusCode(500, new { error = ex.Message });
             }

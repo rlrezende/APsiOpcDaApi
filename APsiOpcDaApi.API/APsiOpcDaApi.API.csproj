@@ -39,5 +39,10 @@
     <PackageReference Include="Quick.OpcNetApi.Com" Version="2.1.108" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../../APsiCLicensing/src/APsiC.Licensing.AspNetCore/APsiC.Licensing.AspNetCore.csproj" /></ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Release'">
+    <Content Remove="wwwroot/swagger-default-auth.js" />
+  </ItemGroup>
+  <ItemGroup><Compile Include="../../APsiCLicensing/contracts/MappingSafety.cs" Link="Security/MappingSafety.cs" /></ItemGroup>
 </Project>
 

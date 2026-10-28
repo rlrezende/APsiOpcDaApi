@@ -17,6 +17,20 @@ namespace APsiOpcDaApi.API.Extensions
             var httpMethod = (context.ApiDescription.HttpMethod ?? "GET").ToUpperInvariant();
             var route = "/" + (context.ApiDescription.RelativePath ?? string.Empty).TrimStart('/');
 
+            if ((cad.ControllerName is "OpcServer" or "OpcDa" or "Tag" && httpMethod is "POST" or "PUT" or "DELETE") || (cad.ControllerName=="OpcGroup" && cad.ActionName=="AddTagsToGroup"))
+            {
+                operation.Parameters ??= new List<OpenApiParameter>();
+                var key = operation.Parameters.FirstOrDefault(p=>p.In==ParameterLocation.Header && p.Name=="Idempotency-Key");
+                if(key is null)
+                {
+                    key = new OpenApiParameter { Name="Idempotency-Key", In=ParameterLocation.Header,
+                        Schema=new OpenApiSchema { Type="string", Format="uuid" } };
+                    operation.Parameters.Add(key);
+                }
+                key.Required=true;
+                key.Description="UUID estável da operação; repetir a mesma chave e payload após resposta incerta.";
+            }
+
             var businessDescription = BuildBusinessDescription(cad.ControllerName, cad.ActionName, httpMethod);
 
             operation.Summary ??= $"{httpMethod} {route}";
@@ -24,10 +38,9 @@ namespace APsiOpcDaApi.API.Extensions
             var hasAllowAnonymous = cad.MethodInfo.GetCustomAttributes(typeof(AllowAnonymousAttribute), true).Any()
                 || cad.ControllerTypeInfo.GetCustomAttributes(typeof(AllowAnonymousAttribute), true).Any();
 
-            var hasAuthorize = cad.MethodInfo.GetCustomAttributes(typeof(AuthorizeAttribute), true).Any()
-                || cad.ControllerTypeInfo.GetCustomAttributes(typeof(AuthorizeAttribute), true).Any();
-
-            var authRequired = hasAuthorize && !hasAllowAnonymous;
+            // All three hosts use RequireAuthenticatedUser as their fallback policy.
+            // Absence of [Authorize] is not an anonymous contract.
+            var authRequired = !hasAllowAnonymous;
             var authText = authRequired ? "Sim (Bearer JWT)" : "Não";
 
             var descriptionLines = new List<string>

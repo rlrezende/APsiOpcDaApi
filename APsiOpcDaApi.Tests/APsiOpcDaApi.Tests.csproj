@@ -30,4 +30,9 @@
           CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <PropertyGroup><DefineConstants>$(DefineConstants);DA_API</DefineConstants></PropertyGroup>
+  <ItemGroup><Compile Include="../../APsiCLicensing/tests/ApiFoundationSecurityTests.cs" Link="Security/ApiFoundationSecurityTests.cs" /></ItemGroup>
+  <ItemGroup><None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+  <ItemGroup><Compile Include="../../APsiCLicensing/tests/TestAuthority.cs" Link="TestAuthority.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../../APsiCLicensing/tests/ConnectionSecretUpdateTests.cs" Link="Security/ConnectionSecretUpdateTests.cs" /></ItemGroup>
 </Project>

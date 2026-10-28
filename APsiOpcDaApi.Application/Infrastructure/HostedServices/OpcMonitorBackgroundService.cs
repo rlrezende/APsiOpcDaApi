@@ -1,74 +1,58 @@
+using APsiC.Operations;
 using APsiOpcDaApi.Application.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-
-namespace APsiOpcDaApi.Application.Infrastructure.HostedServices
+namespace APsiOpcDaApi.Application.Infrastructure.HostedServices;
+public sealed class OpcMonitorBackgroundService(IServiceProvider services,ILogger<OpcMonitorBackgroundService> logger):BackgroundService
 {
-    public class OpcMonitorBackgroundService : BackgroundService
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        private readonly IServiceProvider _serviceProvider;
-        private readonly ILogger<OpcMonitorBackgroundService> _logger;
-
-        public OpcMonitorBackgroundService(
-            IServiceProvider serviceProvider,
-            ILogger<OpcMonitorBackgroundService> logger)
+        var instances=new Dictionary<Guid,(IServiceScope Scope,IOpcMonitoringService Monitor)>();
+        try
         {
-            _serviceProvider = serviceProvider;
-            _logger = logger;
-        }
-
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            _logger.LogInformation("🚀 OPC Monitor Background Service iniciado");
-            
-
-             using var scope = _serviceProvider.CreateScope();
-             var monitoringService = scope.ServiceProvider.GetRequiredService<IOpcMonitoringService>();
-
-            while (!stoppingToken.IsCancellationRequested)
+            while(!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    _logger.LogInformation("🔄 Iniciando ciclo de monitoramento...");
-
-                    await monitoringService.MonitorarTagsAsync(stoppingToken);
-
-                    _logger.LogInformation("✅ Ciclo de monitoramento concluído");
-                    
-                    // Aguardar antes da próxima verificação (30 segundos)
-                    await Task.Delay(30000, stoppingToken);
+                    using var registryScope=services.CreateScope();
+                    var registry=registryScope.ServiceProvider.GetRequiredService<IWorkerOperationAccess>();
+                    foreach(var id in registry.ConfiguredServers("communication.opcda"))
+                    {
+                        stoppingToken.ThrowIfCancellationRequested();
+                        try
+                        {
+                            using var access=registry.Enter(id);
+                            if(!instances.TryGetValue(id,out var instance))
+                            {
+                                var scope=services.CreateScope();
+                                try{instance=(scope,scope.ServiceProvider.GetRequiredService<IOpcMonitoringService>());instances.Add(id,instance);}
+                                catch{scope.Dispose();throw;}
+                            }
+                            await instance.Monitor.MonitorarTagsAsync(stoppingToken);
+                        }
+                        catch(OperationAdmissionDeniedException ex){logger.LogWarning("OPC worker denied for {ServerId}: {Code}",id,ex.Code);}
+                    }
+                    // Revocation stops new acquisition. It never triggers a physical disconnect.
+                    await Task.Delay(TimeSpan.FromSeconds(30),stoppingToken);
                 }
-                catch (OperationCanceledException)
+                catch(OperationCanceledException) when(stoppingToken.IsCancellationRequested){break;}
+                catch(Exception ex)
                 {
-                    _logger.LogInformation("🛑 OPC Monitor Background Service cancelado");
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Erro no OPC Monitor Background Service");
-                    await Task.Delay(10000, stoppingToken); // Aguardar 10s antes de tentar novamente
+                    logger.LogError(ex,"OPC worker cycle failed");
+                    await Task.Delay(TimeSpan.FromSeconds(10),stoppingToken);
                 }
             }
         }
-
-        public override async Task StopAsync(CancellationToken cancellationToken)
+        finally
         {
-            _logger.LogInformation("Parando OPC Monitor Background Service...");
-            
-            try
+            // Host shutdown is an explicit lifecycle event, independent of licensing.
+            foreach(var instance in instances.Values)
             {
-                using var scope = _serviceProvider.CreateScope();
-                var monitoringService = scope.ServiceProvider.GetRequiredService<IOpcMonitoringService>();
-                await monitoringService.StopMonitoringAsync();
+                try{await instance.Monitor.StopMonitoringAsync();}
+                catch(Exception ex){logger.LogError(ex,"OPC shutdown failed");}
+                finally{instance.Scope.Dispose();}
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Erro ao parar monitoramento OPC");
-            }
-
-            await base.StopAsync(cancellationToken);
         }
     }
 }
-

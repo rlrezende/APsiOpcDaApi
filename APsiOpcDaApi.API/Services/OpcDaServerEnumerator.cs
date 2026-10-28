@@ -5,7 +5,7 @@ using OpcCom;
 
 namespace APsiOpcDaApi.API.Services
 {
-    public sealed class OpcDaServerEnumerator : IOpcDaServerEnumerator
+    public sealed class OpcDaServerEnumerator(APsiC.Operations.IEndpointOperationAdmission? admission=null) : IOpcDaServerEnumerator
     {
         internal readonly record struct UrlMetadata(
             string? Scheme,
@@ -14,6 +14,8 @@ namespace APsiOpcDaApi.API.Services
 
         public IEnumerable<OpcDaDiscoveredServerDTO> Enumerate(string host)
         {
+            (admission ?? throw new APsiC.Operations.OperationAdmissionDeniedException("OPERATION_ADMISSION_REQUIRED"))
+                .DemandEndpoint("opcda",host,"Communication.View","opc.discover");
             using var enumerator = new ServerEnumerator();
             var servers = enumerator.GetAvailableServers(Specification.COM_DA_20, host, null)
                 ?? Array.Empty<Opc.Server>();

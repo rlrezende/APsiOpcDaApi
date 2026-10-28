@@ -1,3 +1,4 @@
+using APsiC.Licensing.AspNetCore;
 using System;
 using APsiOpcDaApi.API.Extensions;
 using APsiOpcDaApi.API.Logging;
@@ -46,7 +47,7 @@ if (!string.IsNullOrWhiteSpace(opcApiBaseUrl))
 // SignalR com erros detalhados
 builder.Services.AddSignalR(options =>
 {
-    options.EnableDetailedErrors = true;
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
     options.KeepAliveInterval = TimeSpan.FromSeconds(15);
     options.ClientTimeoutInterval = TimeSpan.FromMinutes(2);
     options.HandshakeTimeout = TimeSpan.FromSeconds(30);
@@ -60,6 +61,7 @@ builder.Services.Configure<FormOptions>(options =>
 
 // Serviços da aplicação
 builder.Services.ConfigureServices(builder.Configuration, builder.Environment);
+builder.Services.AddLicensingV2Foundation("OpcDa", "OpcBrowser", "OpcConnection", "OpcDiscovery", "OpcGroup", "OpcNode", "OpcServer", "Tag");
 
 // CORS para SignalR e frontend
 builder.Services.AddCors(options =>
@@ -77,14 +79,18 @@ builder.Services.AddCors(options =>
 });
 
 // Controllers e JSON
+builder.Services.AddScoped<APsiC.Licensing.AspNetCore.IRealtimeOwnershipResolver, APsiOpcDaApi.API.Services.RealtimeOwnershipResolver>();
 builder.Services.AddControllers(options =>
 {
+    options.Filters.Add(new APsiC.Licensing.AspNetCore.CanonicalActionFilter());
+    options.Filters.Add(new APsiOpcDaApi.API.Services.OperationAdmissionExceptionFilter());
     options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
     options.MaxModelBindingCollectionSize = int.MaxValue;
 })
 .AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.Preserve;
+    PublicConnectionJson.HideOutputProperties<APsiOpcDaApi.Application.DTOs.OpcServerDTO>(options.JsonSerializerOptions,"Password","ConnectionString","ErrorMessage");
 });
 
 // FluentValidation
@@ -140,16 +146,9 @@ if (enableSwagger)
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "APsiC OPC DA API v1");
         c.DisplayRequestDuration();
         c.EnablePersistAuthorization();
-        c.InjectJavascript("/swagger-default-auth.js");
     });
 
-    app.MapGet("/dev/swagger-default-token", () =>
-    {
-        var token = Environment.GetEnvironmentVariable("SWAGGER_DEFAULT_BEARER_TOKEN");
-        return string.IsNullOrWhiteSpace(token)
-            ? Results.NoContent()
-            : Results.Ok(new { token });
-    }).ExcludeFromDescription();
+
 }
 else
 {

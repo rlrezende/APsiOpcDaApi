@@ -17,11 +17,15 @@ namespace APsiOpcDaApi.Application.DTOs
         public string? SecurityMode { get; set; }
         public string? Username { get; set; }
         public string? Password { get; set; }
+        public bool ClearPassword { get; set; }
+        public bool HasPassword => !string.IsNullOrEmpty(Password);
         public string? Host { get; set; }
         public string? ProgId { get; set; }
         public string? ClsId { get; set; }
         public string? Provider { get; set; }
         public string? ConnectionString { get; set; }
+        public bool ClearConnectionString { get; set; }
+        public bool HasConnectionString => !string.IsNullOrEmpty(ConnectionString);
         public bool IsConnected { get; set; }
         public bool IsActive { get; set; }
         public DateTime? LastConnection { get; set; }

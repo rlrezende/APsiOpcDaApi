@@ -56,7 +56,8 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
 
         public async Task UpdateAsync(TEntity entity)
         {
-            _context.Set<TEntity>().Update(entity); // mais seguro para chaves estrangeiras
+            if (_context.Entry(entity).State == EntityState.Detached)
+                _context.Set<TEntity>().Update(entity);
             await _context.SaveChangesAsync(); 
         }
 

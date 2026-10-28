@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 namespace APsiOpcDaApi.API.Controllers
 {
     [ApiController]
-    [AllowAnonymous]
     [Route("api/[controller]")]
     public class OpcBrowserController : ControllerBase
     {
@@ -23,7 +22,6 @@ namespace APsiOpcDaApi.API.Controllers
         }
 
         [HttpGet("nodes/{serverId}")]
-        [AllowAnonymous]
         public async Task<IActionResult> BrowseNodes(Guid serverId, [FromQuery] string? parentNodeId = null, [FromQuery] Guid? unidadeId = null)
         {
             try

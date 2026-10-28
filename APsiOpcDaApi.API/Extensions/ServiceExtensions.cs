@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using APsiOpcDaApi.Application.Interfaces;
@@ -23,17 +23,23 @@ namespace APsiOpcDaApi.API.Extensions
             IConfiguration configuration,
             IHostEnvironment environment)
         {
+            configuration = APsiC.Licensing.AspNetCore.InstalledAuthenticationConfiguration.ForHost(configuration);
+            services.AddSingleton<IConfiguration>(configuration);
             // ConfiguraÃ§Ã£o do DbContext com Lazy Loading habilitado
             services.AddDbContext<APsiOpcDaApiContext>(options =>
                 options.UseLazyLoadingProxies() // Habilita Lazy Loading
                        .UseNpgsql(configuration.GetConnectionString("DefaultConnection"), npgsqlOptions => npgsqlOptions.CommandTimeout(120)));
+            services.AddScoped<APsiOpcDaApiContext>(provider => new APsiOpcDaApiContext(
+                provider.GetRequiredService<DbContextOptions<APsiOpcDaApiContext>>(),
+                new QuotaSaveBoundary(provider.GetRequiredService<APsiC.Licensing.AspNetCore.ILocalLicensingRuntime>())));
+
 
             // ConfiguraÃ§Ã£o do Swagger
             services.AddEndpointsApiExplorer();
             ConfigureSwagger(services);
 
             // ConfiguraÃ§Ã£o do AutoMapper
-            services.AddAutoMapper(typeof(MappingProfile));
+            services.AddAutoMapper(APsiC.Security.MappingSafety.Apply,typeof(MappingProfile));
 
             // Registro dos RepositÃ³rios e UnitOfWork
             RegisterRepositories(services);
@@ -58,6 +64,7 @@ namespace APsiOpcDaApi.API.Extensions
         {
             services.AddSwaggerGen(options =>
             {
+                options.SchemaFilter<APsiOpcDaApi.API.Services.ConnectionSecretSchemaFilter>();
                 options.SwaggerDoc("v1", new OpenApiInfo
                 {
                     Title = "APsiC OPC DA API",
@@ -105,6 +112,7 @@ namespace APsiOpcDaApi.API.Extensions
         {
             services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
             services.AddScoped<ITagRepository, TagRepository>();
+            services.AddScoped<IUnitOfWork,UnitOfWork>();
             services.AddScoped<ILeituraRepository, LeituraRepository>();
             services.AddScoped<IOpcServerRepository, OpcServerRepository>();
             services.AddScoped<IOpcNodeRepository, OpcNodeRepository>();
@@ -114,11 +122,18 @@ namespace APsiOpcDaApi.API.Extensions
 
         private static void RegisterServices(IServiceCollection services, IHostEnvironment environment)
         {
+            services.AddScoped<APsiC.Operations.ILocalDiagnosticsAdmission,LocalDiagnosticsAdmission>();
+            services.AddScoped<QuotaHttpMutation>();
+            services.AddScoped<OperationAdmission>();
+            services.AddScoped<APsiC.Operations.IWorkerOperationAccess>(p=>p.GetRequiredService<OperationAdmission>());
+            services.AddScoped<APsiC.Operations.IOperationAdmission>(p=>p.GetRequiredService<OperationAdmission>());
+            services.AddScoped<APsiC.Operations.IExternalCommandExecution>(p=>p.GetRequiredService<OperationAdmission>());
+            services.AddScoped<APsiC.Operations.IEndpointOperationAdmission>(p=>p.GetRequiredService<OperationAdmission>());
             services.AddScoped(typeof(IGenericService<,>), typeof(GenericService<,>));
             services.AddScoped<ITagService, TagService>();
             services.AddScoped<ILeituraService, LeituraService>();
             services.AddHttpContextAccessor();
-            services.AddScoped<IUserContextService, UserContextService>();
+            services.AddScoped<IUserContextService, CanonicalResourceUserContextService>();
             services.AddScoped<INotificadorSimulacao, SignalRNotificadorSimulacao>();
             if (!environment.IsEnvironment("Testing"))
             {
@@ -154,13 +169,24 @@ namespace APsiOpcDaApi.API.Extensions
                 {
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ValidateIssuer = false,
-                    ValidateAudience = false
+                    ValidateIssuer = true,
+                    ValidIssuer = configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("JWT_ISSUER_REQUIRED"),
+                    ValidateAudience = true,
+                    ValidAudience = configuration["Jwt:Audience"] ?? throw new InvalidOperationException("JWT_AUDIENCE_REQUIRED"),
+                    ValidateLifetime = true,
+                    RequireExpirationTime = true,
+                    RequireSignedTokens = true,
+                    ClockSkew = TimeSpan.Zero
                 };
 
                 // ðŸ” Permitir o uso do token via query string (necessÃ¡rio para SignalR)
                 options.Events = new JwtBearerEvents
                 {
+                    OnTokenValidated = context =>
+                    {
+                        APsiC.Licensing.AspNetCore.CanonicalTokenValidation.Validate(context.HttpContext, context.Principal, context.Fail);
+                        return Task.CompletedTask;
+                    },
                     OnMessageReceived = context =>
                     {
                         var accessToken = context.Request.Query["access_token"];

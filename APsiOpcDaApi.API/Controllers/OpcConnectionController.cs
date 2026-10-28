@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc;
 namespace APsiOpcDaApi.API.Controllers
 {
     [ApiController]
-    [AllowAnonymous]
     [Route("api/opc-connection")]
     public class OpcConnectionController : ControllerBase
     {
@@ -64,7 +63,7 @@ namespace APsiOpcDaApi.API.Controllers
                     });
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not APsiC.Operations.OperationAdmissionDeniedException and not APsiC.Licensing.QuotaMutationException and not APsiOpcDaApi.Application.Exceptions.ResourceScopeDeniedException)
             {
                 return StatusCode(500, new { message = "Erro ao conectar", error = ex.Message });
             }

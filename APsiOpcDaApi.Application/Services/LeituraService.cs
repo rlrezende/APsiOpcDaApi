@@ -101,7 +101,7 @@ namespace APsiOpcDaApi.Application.Services
         public async Task<List<LeituraDTO>> ObterLeiturasPorPeriodoETagsAsync(Guid unidadeId, DateTime dataInicio, DateTime dataFim, List<Guid> tagIds)
         {
             var leituras = await _repository.ObterLeiturasPorPeriodoETagsAsync(unidadeId, dataInicio, dataFim, tagIds);
-            return _mapper.Map<List<LeituraDTO>>(leituras);
+            return _mapper.Map<List<LeituraDTO>>(leituras.Where(l => InScope(l)));
         }
 
         /// <summary>

@@ -1,3 +1,4 @@
+using APsiC.Operations;
 using APsiOpcDaApi.Application.DTOs;
 using APsiOpcDaApi.Application.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,6 +35,7 @@ namespace APsiOpcDaApi.Application.Services
         private readonly IOpcNodeService _nodeService;
         private readonly ITagService _tagService;
         private readonly IOpcDaClientService _opcDaClientService;
+        private readonly IOperationAdmission? _admission;
 
         // Gerenciamento de sessões e subscriptions
         private readonly ConcurrentDictionary<Guid, Session> _activeSessions = new();
@@ -87,7 +89,7 @@ namespace APsiOpcDaApi.Application.Services
             ITagService tagService,
             IOpcDaClientService opcDaClientService,
             ILogger<OpcMonitoringService> logger,
-            IServiceScopeFactory scopeFactory)
+            IServiceScopeFactory scopeFactory,IOperationAdmission? admission=null)
         {
             _groupService = groupService;
             _opcServerService = opcServerService;
@@ -98,6 +100,7 @@ namespace APsiOpcDaApi.Application.Services
             _opcDaClientService = opcDaClientService;
             _logger = logger;
             _scopeFactory = scopeFactory;
+            _admission = admission;
         }
         
         private async Task CleanupStaleGroupsAndTagsAsync(CancellationToken cancellationToken)
@@ -558,6 +561,7 @@ namespace APsiOpcDaApi.Application.Services
                     return;
 
                 using var scope = _scopeFactory.CreateScope();
+                using var workerAccess=scope.ServiceProvider.GetService<IWorkerOperationAccess>()?.EnterForTag(changes[0].TagId);
                 var tagService = scope.ServiceProvider.GetRequiredService<ITagService>();
                 var leituraService = scope.ServiceProvider.GetRequiredService<ILeituraService>();
                 var notificador = scope.ServiceProvider.GetRequiredService<INotificadorSimulacao>();
@@ -661,6 +665,7 @@ namespace APsiOpcDaApi.Application.Services
 
         private async Task EnsureOpcDaMonitoringAsync(OpcServerDTO server, OpcGroupDTO group, CancellationToken cancellationToken)
         {
+            (_admission??throw new APsiC.Operations.OperationAdmissionDeniedException("OPERATION_ADMISSION_REQUIRED")).Demand(new("OpcServer",server.Id,OperationKind.AcquireCycle,"Communication.Monitor","opc.read",server));
             if (!_opcDaClientService.IsSupported)
             {
                 _logger.LogWarning("Servidor OPC DA '{Server}' ignorado: ambiente não Windows.", server.Nome);
@@ -796,7 +801,10 @@ namespace APsiOpcDaApi.Application.Services
             {
                 try
                 {
-                    var group = await _groupService.GetByIdAsync(groupId);
+                    using var scope=_scopeFactory.CreateScope();
+                    using var workerAccess=scope.ServiceProvider.GetService<IWorkerOperationAccess>()?.Enter(server.Id);
+                    var scopedGroups=scope.ServiceProvider.GetRequiredService<IOpcGroupService>();
+                    var group = await scopedGroups.GetByIdAsync(groupId);
                     if (group == null || !group.IsActive || !IsPollingMode(group))
                     {
                         break;
@@ -898,21 +906,19 @@ namespace APsiOpcDaApi.Application.Services
                     var now = DateTime.UtcNow;
                     var updateRateMs = Math.Max(200, group.UpdateRate);
                     var staleThreshold = TimeSpan.FromMilliseconds(updateRateMs);
-                    var historianInterval = GetHistorianInterval(group);
 
                     // Cada replay roda em uma Task independente. Resolva os serviços scoped
                     // dentro da tarefa para não compartilhar o DbContext entre grupos.
                     using var scope = _scopeFactory.CreateScope();
+                    using var workerAccess=scope.ServiceProvider.GetService<IWorkerOperationAccess>()?.Enter(group.ServerId);
                     var groupService = scope.ServiceProvider.GetRequiredService<IOpcGroupService>();
                     var notificador = scope.ServiceProvider.GetRequiredService<INotificadorSimulacao>();
-                    var leituraService = scope.ServiceProvider.GetRequiredService<ILeituraService>();
 
                     var tags = await groupService.GetGroupTagsAsync(group.Id);
                     var monitoredTags = tags.Where(t => t.Monitora && t.ValorAtual.HasValue).ToList();
 
                     if (monitoredTags.Count > 0)
                     {
-                        var leituras = new List<LeituraDTO>();
 
                         foreach (var tag in monitoredTags)
                         {
@@ -946,25 +952,12 @@ namespace APsiOpcDaApi.Application.Services
                                 continue;
                             }
 
-                            // Replay notifica SignalR sempre; grava no histórico conforme configurado no grupo.
-                            await notificador.NotificarAtualizacaoTagAsync(tag.Id, tag.ValorAtual.Value, now);
+                            if(lastEventAt==DateTime.MinValue)continue;
+                            await notificador.NotificarAtualizacaoTagAsync(tag.Id, tag.ValorAtual.Value, lastEventAt);
                             _lastReplaySentAt[tag.Id] = now;
-
-                            if (!_lastHistorianSave.TryGetValue(tag.Id, out var lastSaveReplay)
-                                || now - lastSaveReplay >= historianInterval)
-                            {
-                                _lastHistorianSave[tag.Id] = now;
-                                leituras.Add(new LeituraDTO
-                                {
-                                    TagId = tag.Id,
-                                    Valor = tag.ValorAtual.Value,
-                                    DataLeitura = now
-                                });
-                            }
                         }
 
-                        if (leituras.Count > 0)
-                            await leituraService.AddRangeAsync(leituras);
+
                     }
 
                     await Task.Delay(updateRateMs, token);
@@ -1000,6 +993,7 @@ namespace APsiOpcDaApi.Application.Services
                 DaSubscriptionHandle? handle = null;
                 try
                 {
+                    (_admission??throw new APsiC.Operations.OperationAdmissionDeniedException("OPERATION_ADMISSION_REQUIRED")).Demand(new("OpcServer",server.Id,OperationKind.Connect,"Communication.Monitor","opc.connect",server,itemIds));
                     var url = BuildDaUrl(server);
                     var opcServer = new DaServer(new OpcCom.Factory(), null);
 
@@ -1034,6 +1028,8 @@ namespace APsiOpcDaApi.Application.Services
                     DaDataChangedEventHandler handler = (subHandle, requestHandle, values) =>
                     {
                         if (values == null) return;
+                        try{(_admission??throw new APsiC.Operations.OperationAdmissionDeniedException("OPERATION_ADMISSION_REQUIRED")).Demand(new("OpcServer",server.Id,OperationKind.AcquireCycle,"Communication.Monitor","opc.read",server,itemIds));}
+                        catch(OperationAdmissionDeniedException ex){_logger.LogWarning("DA callback denied: {Code}",ex.Code);return;}
 
                         _daGroupLastEventAt[group.Id] = DateTime.UtcNow;
                         var changes = new List<(Guid TagId, OpcTagDTO OpcValue)>();
@@ -1125,6 +1121,7 @@ namespace APsiOpcDaApi.Application.Services
             Task.Run(async () =>
             {
                 using var scope = _scopeFactory.CreateScope();
+                using var workerAccess=scope.ServiceProvider.GetService<IWorkerOperationAccess>()?.EnterForTag(values[0].TagId);
                 var tagService = scope.ServiceProvider.GetRequiredService<ITagService>();
                 var leituraService = scope.ServiceProvider.GetRequiredService<ILeituraService>();
                 var notificador = scope.ServiceProvider.GetRequiredService<INotificadorSimulacao>();

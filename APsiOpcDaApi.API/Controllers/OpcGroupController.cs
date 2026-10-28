@@ -1,4 +1,6 @@
 using APsiOpcDaApi.Application.DTOs;
+using APsiOpcDaApi.API.Services;
+using APsiC.Licensing.Infrastructure;
 using APsiOpcDaApi.Application.Interfaces;
 using APsiOpcDaApi.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
@@ -9,17 +11,18 @@ using System.Linq;
 namespace APsiOpcDaApi.API.Controllers
 {
     [ApiController]
-    [AllowAnonymous]
     [Route("api/opc-groups")]
     public class OpcGroupController : ControllerBase
     {
         private readonly IOpcGroupService _groupService;
         private readonly IOpcServerService _serverService;
+        private readonly QuotaHttpMutation? _mutations;
 
-        public OpcGroupController(IOpcGroupService groupService, IOpcServerService serverService)
+        public OpcGroupController(IOpcGroupService groupService, IOpcServerService serverService,QuotaHttpMutation? mutations=null)
         {
             _groupService = groupService;
             _serverService = serverService;
+            _mutations=mutations;
         }
 
         [HttpGet]
@@ -132,6 +135,16 @@ namespace APsiOpcDaApi.API.Controllers
         [HttpPost("{groupId}/tags")]
         public async Task<IActionResult> AddTagsToGroup(Guid groupId, [FromBody] AddTagsWithNodesToGroupRequest request)
         {
+            if(_mutations is not null)
+                return await _mutations.ExecuteAsync(this,request,async()=>
+                {
+                    var group=await _groupService.GetGroupWithTagsAsync(groupId);
+                    if(group is null)return null;
+                    var server=await _serverService.GetByIdAsync(group.ServerId);
+                    if(server is null)return null;
+                    if(!await _groupService.AddTagsToGroupAsync(groupId,request.Tags))return null;
+                    return new QuotaHttpResponse(200,QuotaHttpMutation.Serialize(new{message="Tags adicionadas com sucesso"}),server.ModuloId);
+                },typeof(Tag));
             var result = await _groupService.AddTagsToGroupAsync(groupId, request.Tags);
             if (!result)
                 return BadRequest("Erro ao adicionar tags ao grupo");

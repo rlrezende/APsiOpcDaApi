@@ -1,3 +1,4 @@
+using APsiC.Operations;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -22,6 +23,8 @@ namespace APsiOpcDaApi.Application.Services
 
         private readonly ILogger<OpcDaClientService> _logger;
         private readonly bool _isWindows;
+        private readonly IOperationAdmission? _admission;
+        private readonly IExternalCommandExecution? _external;
 
         private const string BridgeEnvVar = "OPC_DA_BRIDGE_URL";
 
@@ -39,15 +42,17 @@ namespace APsiOpcDaApi.Application.Services
             };
         }
 
-        public OpcDaClientService(ILogger<OpcDaClientService> logger)
-            : this(logger, OperatingSystem.IsWindows())
+        public OpcDaClientService(ILogger<OpcDaClientService> logger,IOperationAdmission? admission=null,IExternalCommandExecution? external=null)
+            : this(logger, OperatingSystem.IsWindows(),admission,external)
         {
         }
 
-        internal OpcDaClientService(ILogger<OpcDaClientService> logger, bool isWindows)
+        internal OpcDaClientService(ILogger<OpcDaClientService> logger, bool isWindows,IOperationAdmission? admission=null,IExternalCommandExecution? external=null)
         {
             _logger = logger;
             _isWindows = isWindows;
+            _admission = admission;
+            _external = external;
         }
 
         public bool IsSupported => _isWindows;
@@ -55,6 +60,7 @@ namespace APsiOpcDaApi.Application.Services
         public Task<bool> TestConnectionAsync(OpcServerDTO server)
         {
             EnsureCanUseDa(server);
+            (_admission??throw new APsiC.Operations.OperationAdmissionDeniedException("OPERATION_ADMISSION_REQUIRED")).Demand(new("OpcServer",server.Id,OperationKind.Connect,"Communication.Connect","opc.connect",server));
             return Task.Run(() => RunOnSta(() =>
             {
                 try
@@ -73,6 +79,7 @@ namespace APsiOpcDaApi.Application.Services
         public Task<OpcBrowseResultDTO> BrowseAsync(OpcServerDTO server, string? itemId = null)
         {
             EnsureCanUseDa(server);
+            (_admission??throw new APsiC.Operations.OperationAdmissionDeniedException("OPERATION_ADMISSION_REQUIRED")).Demand(new("OpcServer",server.Id,OperationKind.Connect,"Communication.View","opc.browse",server));
             return Task.Run(() => RunOnSta(() => BrowseInternal(server, itemId)));
         }
 
@@ -80,17 +87,6 @@ namespace APsiOpcDaApi.Application.Services
         {
             url = Environment.GetEnvironmentVariable(BridgeEnvVar) ?? string.Empty;
             return !string.IsNullOrWhiteSpace(url);
-        }
-
-        private async Task<IReadOnlyList<OpcTagDTO>> ReadViaBridgeAsync(OpcServerDTO server, List<string> itemIds)
-        {
-            if (!TryGetBridgeUrl(out var url))
-            {
-                return Array.Empty<OpcTagDTO>();
-            }
-
-            using var client = new System.Net.Http.HttpClient();
-            return await ReadViaBridgeAsync(server, itemIds, url, client.PostAsync);
         }
 
         internal async Task<IReadOnlyList<OpcTagDTO>> ReadViaBridgeAsync(
@@ -183,10 +179,12 @@ namespace APsiOpcDaApi.Application.Services
                 return Task.FromResult<IReadOnlyList<OpcTagDTO>>(Array.Empty<OpcTagDTO>());
             }
 
+            (_admission??throw new APsiC.Operations.OperationAdmissionDeniedException("OPERATION_ADMISSION_REQUIRED")).Demand(new("OpcServer",server.Id,OperationKind.AcquireCycle,"Communication.Monitor","opc.read",server,normalizedIds.ToArray()));
+
+            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OPC_DA_BRIDGE_PIPE")))
+                return new NamedPipeOpcDaTransport().ReadAsync(server, normalizedIds);
             if (TryGetBridgeUrl(out _))
-            {
-                return ReadViaBridgeAsync(server, normalizedIds);
-            }
+                throw new InvalidOperationException("BRIDGE_PRIVATE_IPC_MIGRATION_REQUIRED");
 
             return Task.Run(() => RunOnSta(() => ReadInternal(server, normalizedIds)));
         }
@@ -771,11 +769,16 @@ namespace APsiOpcDaApi.Application.Services
         public Task<bool> WriteValueAsync(OpcServerDTO server, string itemId, double value)
         {
             EnsureCanUseDa(server);
-            return Task.Run(() => RunOnSta(() => WriteInternal(server, itemId, value)));
+            var operation=new ResourceOperation("OpcServer",server.Id,OperationKind.OperationalWrite,"Communication.Write","opc.write:"+itemId,server,new[]{itemId},value);
+            (_admission??throw new OperationAdmissionDeniedException("OPERATION_ADMISSION_REQUIRED")).Demand(operation);
+            return (_external??throw new OperationAdmissionDeniedException("OPERATION_IDEMPOTENCY_REQUIRED"))
+                .ExecuteAsync(operation,()=>Task.Run(() => RunOnSta(() => WriteInternal(server, itemId, value))));
         }
 
         private bool WriteInternal(OpcServerDTO serverDto, string itemId, double value)
         {
+            (_admission??throw new OperationAdmissionDeniedException("OPERATION_ADMISSION_REQUIRED"))
+                .Demand(new("OpcServer",serverDto.Id,OperationKind.OperationalWrite,"Communication.Write","opc.write:"+itemId,serverDto,new[]{itemId},value));
             using var scope = CreateConnection(serverDto);
 
             var itemValue = new ItemValue
@@ -790,18 +793,20 @@ namespace APsiOpcDaApi.Application.Services
             IdentifiedResult[]? results = null;
             try
             {
+                (_admission??throw new OperationAdmissionDeniedException("OPERATION_ADMISSION_REQUIRED"))
+                    .Demand(new("OpcServer",serverDto.Id,OperationKind.OperationalWrite,"Communication.Write","opc.write:"+itemId,serverDto,new[]{itemId},value));
                 results = scope.Server.Write(new[] { itemValue });
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationAdmissionDeniedException)
             {
                 _logger.LogError(ex, "Erro ao escrever valor OPC DA para {ItemId}", itemId);
-                return false;
+                throw new OperationAdmissionDeniedException("COMMAND_OUTCOME_UNKNOWN");
             }
 
             if (results == null || results.Length == 0)
             {
-                _logger.LogWarning("Write OPC DA para {ItemId} não retornou resultado", itemId);
-                return false;
+                _logger.LogWarning("Write OPC DA não retornou confirmação; resultado incerto.");
+                throw new OperationAdmissionDeniedException("COMMAND_OUTCOME_UNKNOWN");
             }
 
             var ok = results[0].ResultID.Succeeded();

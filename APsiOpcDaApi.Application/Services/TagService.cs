@@ -75,21 +75,23 @@ namespace APsiOpcDaApi.Application.Services
         /// <returns>Lista de tags e o total de itens</returns>
         public async Task<(IEnumerable<TagDTO> items, int totalItems)> GetPagedTagsWithReadingsAsync(int pageIndex, int pageSize)
         {
-            var (tags, totalItems) = await _tagRepository.GetPagedTagsWithReadingsAsync(pageIndex, pageSize);
-            var tagsDto = _mapper.Map<IEnumerable<TagDTO>>(tags);
-
-            return (tagsDto, totalItems);
+            if (pageIndex < 1 || pageSize < 1) throw new ArgumentOutOfRangeException(nameof(pageIndex));
+            var ids = (await _tagRepository.GetAllAsync()).Where(t => InScope(t)).Select(t => t.Id).ToArray();
+            var (tags, total) = await _tagRepository.GetPagedTagsWithReadingsAsync(pageIndex, pageSize, ids);
+            return (_mapper.Map<IEnumerable<TagDTO>>(tags), total);
         }
 
         public async Task<Guid?> GetOpcServerIdByTagIdAsync(Guid tagId)
         {
+            var tag = await _tagRepository.GetByIdAsync(tagId);
+            DemandScope(tag);
             return await _tagRepository.GetOpcServerIdByTagIdAsync(tagId);
         }
         
         public async Task<IEnumerable<TagDTO>> GetTagsByServerAsync(Guid serverId, string origem)
         {
             var tags = await _tagRepository.GetTagsByServerAsync(serverId, origem);
-            return _mapper.Map<IEnumerable<TagDTO>>(tags);
+            return _mapper.Map<IEnumerable<TagDTO>>(tags.Where(t => InScope(t)));
         }
 
         public async Task<TagDTO?> GetByNodeIdOpcAsync(string nodeIdOpc)
@@ -100,6 +102,7 @@ namespace APsiOpcDaApi.Application.Services
             }
 
             var tag = await _tagRepository.GetByNodeIdOpcAsync(nodeIdOpc);
+            if (tag != null) DemandScope(tag);
             return tag != null ? _mapper.Map<TagDTO>(tag) : null;
         }
 
@@ -110,7 +113,7 @@ namespace APsiOpcDaApi.Application.Services
                 return Enumerable.Empty<TagDTO>();
 
             var tags = await _tagRepository.GetByIdsAsync(idList);
-            return _mapper.Map<IEnumerable<TagDTO>>(tags);
+            return _mapper.Map<IEnumerable<TagDTO>>(tags.Where(t => InScope(t)));
         }
 
         public async Task AtualizarValoresAtuaisAsync(IReadOnlyDictionary<Guid, double> valores)
@@ -118,6 +121,9 @@ namespace APsiOpcDaApi.Application.Services
             if (valores.Count == 0)
                 return;
 
+            var tags = (await _tagRepository.GetByIdsAsync(valores.Keys)).ToArray();
+            if (tags.Length != valores.Count) throw new APsiOpcDaApi.Application.Exceptions.ResourceScopeDeniedException();
+            foreach (var tag in tags) DemandScope(tag);
             await _tagRepository.AtualizarValoresAtuaisAsync(valores);
         }
 

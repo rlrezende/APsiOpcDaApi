@@ -1,3 +1,4 @@
+using APsiC.Operations;
 using APsiOpcDaApi.Application.Interfaces;
 using Microsoft.Extensions.Logging;
 using System;
@@ -12,10 +13,12 @@ namespace APsiOpcDaApi.Application.Services
     public class WebBrowserService : IWebBrowserService
     {
         private readonly ILogger<WebBrowserService> _logger;
+        private readonly ILocalDiagnosticsAdmission? _admission;
 
-        public WebBrowserService(ILogger<WebBrowserService> logger)
+        public WebBrowserService(ILogger<WebBrowserService> logger,ILocalDiagnosticsAdmission? admission=null)
         {
             _logger = logger;
+            _admission = admission;
         }
 
         /// <summary>
@@ -23,6 +26,7 @@ namespace APsiOpcDaApi.Application.Services
         /// </summary>
         public bool IsX86Supported()
         {
+            (_admission??throw new APsiC.Operations.OperationAdmissionDeniedException("OPERATION_ADMISSION_REQUIRED")).Demand();
             // Verifica se está rodando em Windows e arquitetura x86
             return OperatingSystem.IsWindows() && RuntimeInformation.OSArchitecture == Architecture.X86;
         }

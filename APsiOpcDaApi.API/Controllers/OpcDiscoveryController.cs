@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 namespace APsiOpcDaApi.API.Controllers
 {
     [ApiController]
-    [AllowAnonymous]
     [Route("api/opc-discovery")]
     public class OpcDiscoveryController : ControllerBase
     {
@@ -29,7 +28,7 @@ namespace APsiOpcDaApi.API.Controllers
                 var result = await _discoveryService.ScanNetworkAsync(unidadeId, networkRange, timeout);
                 return Ok(result);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not APsiC.Operations.OperationAdmissionDeniedException and not APsiC.Licensing.QuotaMutationException and not APsiOpcDaApi.Application.Exceptions.ResourceScopeDeniedException)
             {
                 return StatusCode(500, new { message = "Erro durante o escaneamento", error = ex.Message });
             }
@@ -53,7 +52,7 @@ namespace APsiOpcDaApi.API.Controllers
 
                 return Ok(result);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not APsiC.Operations.OperationAdmissionDeniedException and not APsiC.Licensing.QuotaMutationException and not APsiOpcDaApi.Application.Exceptions.ResourceScopeDeniedException)
             {
                 return BadRequest(new { message = "Erro ao adicionar servidor", error = ex.Message });
             }
@@ -119,7 +118,7 @@ namespace APsiOpcDaApi.API.Controllers
                     alreadyExists = false
                 });
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not APsiC.Operations.OperationAdmissionDeniedException and not APsiC.Licensing.QuotaMutationException and not APsiOpcDaApi.Application.Exceptions.ResourceScopeDeniedException)
             {
                 return StatusCode(500, new { 
                     message = "Erro ao descobrir servidor localhost", 

@@ -1,3 +1,5 @@
+using APsiC.Licensing.Infrastructure;
+using APsiOpcDaApi.API.Services;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -12,10 +14,12 @@ namespace APsiOpcDaApi.Controllers
     public class OpcServerController : ControllerBase
     {
         private readonly IOpcServerService _opcServerService;
+        private readonly QuotaHttpMutation? _mutations;
 
-        public OpcServerController(IOpcServerService opcServerService)
+        public OpcServerController(IOpcServerService opcServerService, QuotaHttpMutation? mutations = null)
         {
             _opcServerService = opcServerService;
+            _mutations = mutations;
         }
 
         [HttpGet]
@@ -57,6 +61,15 @@ namespace APsiOpcDaApi.Controllers
                 return BadRequest(new { message = "UnidadeId é obrigatório." });
             }
 
+            if (_mutations is not null)
+                return await _mutations.ExecuteAsync(this, serverDto, async () =>
+                {
+                    var saved = await _opcServerService.AddAsync(serverDto);
+                    var acknowledgement=new{saved.Id,saved.Nome,saved.ModuloId,UnidadeId=saved.ModuloId,saved.Tipo};
+                    var location = Url.Action(nameof(GetById), new { id = saved.Id, unidadeId = saved.ModuloId });
+                    return new QuotaHttpResponse(201, QuotaHttpMutation.Serialize(acknowledgement), saved.ModuloId, location);
+                });
+
             var created = await _opcServerService.AddAsync(serverDto);
             return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
         }
@@ -64,6 +77,18 @@ namespace APsiOpcDaApi.Controllers
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] OpcServerDTO serverDto, [FromQuery] Guid? unidadeId = null)
         {
+            if (serverDto is null) return BadRequest("Payload inválido.");
+            if (_mutations is not null)
+                return await _mutations.ExecuteAsync(this, new { id, unidadeId, value = serverDto }, async () =>
+                {
+                    var existing = await _opcServerService.GetByIdAsync(id);
+                    if (existing is null || (unidadeId.HasValue && unidadeId.Value != Guid.Empty && existing.ModuloId != unidadeId.Value)) return null;
+                    serverDto.Id = id;
+                    serverDto.ModuloId = unidadeId.HasValue && unidadeId.Value != Guid.Empty ? unidadeId.Value : serverDto.ModuloId != Guid.Empty ? serverDto.ModuloId : existing.ModuloId;
+                    await _opcServerService.UpdateAsync(serverDto);
+                    return new QuotaHttpResponse(204, null, serverDto.ModuloId);
+                });
+
             if (serverDto == null)
             {
                 return BadRequest("Payload inválido.");
@@ -86,6 +111,15 @@ namespace APsiOpcDaApi.Controllers
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> Delete(Guid id, [FromQuery] Guid? unidadeId = null)
         {
+            if (_mutations is not null)
+                return await _mutations.ExecuteAsync(this, new { id, unidadeId }, async () =>
+                {
+                    var existing = await _opcServerService.GetByIdAsync(id);
+                    if (existing is null || (unidadeId.HasValue && unidadeId.Value != Guid.Empty && existing.ModuloId != unidadeId.Value)) return null;
+                    await _opcServerService.DeleteAsync(id);
+                    return new QuotaHttpResponse(204, null, existing.ModuloId);
+                });
+
             if (unidadeId.HasValue && unidadeId.Value != Guid.Empty)
             {
                 var existing = await GetServerInUnidadeAsync(id, unidadeId.Value);

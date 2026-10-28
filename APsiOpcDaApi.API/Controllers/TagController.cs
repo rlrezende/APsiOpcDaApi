@@ -1,3 +1,5 @@
+using APsiC.Licensing.Infrastructure;
+using APsiOpcDaApi.API.Services;
 using APsiOpcDaApi.Application.DTOs;
 using APsiOpcDaApi.Application.Interfaces;
 using APsiOpcDaApi.Domain.Entities;
@@ -12,12 +14,14 @@ namespace APsiOpcDaApi.API.Controllers;
 public class TagController : ControllerBase
 {
     private readonly ITagService _tagService;
+    private readonly QuotaHttpMutation? _mutations;
     private readonly IGenericService<Tag, TagDTO> _genericService;
 
-    public TagController(IGenericService<Tag, TagDTO> genericService, ITagService tagService)
+    public TagController(IGenericService<Tag, TagDTO> genericService, ITagService tagService, QuotaHttpMutation? mutations = null)
     {
         _genericService = genericService;
         _tagService = tagService;
+        _mutations = mutations;
     }
 
     [HttpGet]
@@ -37,6 +41,13 @@ public class TagController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<TagDTO>> Create([FromBody] TagDTO dto)
     {
+        if (_mutations is not null)
+            return (ActionResult)await _mutations.ExecuteAsync(this, dto, async () =>
+            {
+                var saved = await _genericService.AddAsync(dto);
+                return new QuotaHttpResponse(201, QuotaHttpMutation.Serialize(saved), saved.ModuloId,
+                    Url.Action(nameof(GetById), new { id = saved.Id }));
+            }, typeof(Tag));
         var created = await _genericService.AddAsync(dto);
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
@@ -44,6 +55,15 @@ public class TagController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] TagDTO dto)
     {
+        if (_mutations is not null)
+            return await _mutations.ExecuteAsync(this, new { id, dto }, async () =>
+            {
+                var existing = await _genericService.GetByIdAsync(id);
+                if (existing is null) return null;
+                dto.Id = id;
+                await _genericService.UpdateAsync(dto);
+                return new QuotaHttpResponse(204, null, dto.ModuloId);
+            }, typeof(Tag));
         dto.Id = id;
         await _genericService.UpdateAsync(dto);
         return NoContent();
@@ -52,6 +72,14 @@ public class TagController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
+        if (_mutations is not null)
+            return await _mutations.ExecuteAsync(this, new { id }, async () =>
+            {
+                var existing = await _genericService.GetByIdAsync(id);
+                if (existing is null) return null;
+                await _genericService.DeleteAsync(id);
+                return new QuotaHttpResponse(204, null, existing.ModuloId);
+            }, typeof(Tag));
         await _genericService.DeleteAsync(id);
         return NoContent();
     }

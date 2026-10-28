@@ -101,7 +101,7 @@ public sealed class OpcDaPollingCharacterizationTests
             tagService.Object,
             fake,
             NullLogger<OpcMonitoringService>.Instance,
-            scopedServices.GetRequiredService<IServiceScopeFactory>());
+            scopedServices.GetRequiredService<IServiceScopeFactory>(),admission:Mock.Of<APsiC.Operations.IOperationAdmission>());
         using var cancellation = new CancellationTokenSource();
 
         try

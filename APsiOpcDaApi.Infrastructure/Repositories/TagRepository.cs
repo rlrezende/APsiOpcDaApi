@@ -12,12 +12,14 @@ namespace APsiOpcDaApi.Infrastructure.Repositories
         {
         }
 
-        public async Task<(IEnumerable<Tag> items, int totalItems)> GetPagedTagsWithReadingsAsync(int pageIndex, int pageSize)
+        public async Task<(IEnumerable<Tag> items, int totalItems)> GetPagedTagsWithReadingsAsync(int pageIndex, int pageSize, IReadOnlyCollection<Guid>? authorizedIds = null)
         {
             // Consulta para filtrar apenas tags que possuem leituras
             var query = from tag in _dbSet.AsNoTracking()
                         where _context.Leitura.Any(leitura => leitura.TagId == tag.Id)
                         select tag;
+
+            if (authorizedIds is not null) query = query.Where(tag => authorizedIds.Contains(tag.Id));
 
             // Contagem total após o filtro
             var totalItems = await query.CountAsync();
