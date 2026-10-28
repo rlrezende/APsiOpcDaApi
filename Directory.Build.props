@@ -2,6 +2,8 @@
   <PropertyGroup>
     <Platforms>x86</Platforms>
     <RuntimeIdentifiers>win-x86;linux-x64</RuntimeIdentifiers>
+    <!-- Windows lock graphs contain win-x86 only; retain the Linux test profile. -->
+    <RuntimeIdentifiers Condition="'$(OS)' == 'Windows_NT'">win-x86</RuntimeIdentifiers>
     <PlatformTarget>x86</PlatformTarget>
     <UseAppHost>true</UseAppHost>
     <SelfContained>false</SelfContained>
