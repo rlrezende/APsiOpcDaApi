@@ -26,7 +26,7 @@ public sealed class OpcDaWriteContractTests
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        await AssertJsonStringAsync(response, "message", "ItemId é obrigatório.");
+        await SafeProblemAssertions.AssertAsync(response, "INVALID_REQUEST");
         Assert.Empty(fake.WriteCalls);
     }
 
@@ -44,7 +44,7 @@ public sealed class OpcDaWriteContractTests
         });
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        await AssertJsonStringAsync(response, "message", "Servidor OPC DA não encontrado.");
+        await SafeProblemAssertions.AssertAsync(response, "RESOURCE_NOT_FOUND");
         Assert.Empty(fake.WriteCalls);
     }
 
@@ -62,7 +62,7 @@ public sealed class OpcDaWriteContractTests
         });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        await AssertJsonStringAsync(response, "message", "Write OPC DA só é suportado em ambiente Windows.");
+        await SafeProblemAssertions.AssertAsync(response, "INVALID_REQUEST");
         Assert.Empty(fake.WriteCalls);
     }
 
@@ -106,9 +106,7 @@ public sealed class OpcDaWriteContractTests
         });
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        using var json = await ReadJsonAsync(response);
-        Assert.Equal("Write falhou no servidor OPC DA.", json.RootElement.GetProperty("message").GetString());
-        Assert.Equal("Channel.Device.Tag", json.RootElement.GetProperty("itemId").GetString());
+        await SafeProblemAssertions.AssertAsync(response, "OPERATION_UNAVAILABLE");
         Assert.Single(fake.WriteCalls);
     }
 
@@ -129,9 +127,7 @@ public sealed class OpcDaWriteContractTests
         });
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        using var json = await ReadJsonAsync(response);
-        Assert.Equal("Erro ao escrever no servidor OPC DA.", json.RootElement.GetProperty("message").GetString());
-        Assert.Equal("falha determinística", json.RootElement.GetProperty("error").GetString());
+        await SafeProblemAssertions.AssertAsync(response, "OPERATION_UNAVAILABLE");
         Assert.Single(fake.WriteCalls);
     }
 
@@ -144,15 +140,6 @@ public sealed class OpcDaWriteContractTests
         ProgId = "Fake.Server",
         Tipo = TipoOpcServer.Da
     };
-
-    private static async Task AssertJsonStringAsync(
-        HttpResponseMessage response,
-        string propertyName,
-        string expected)
-    {
-        using var json = await ReadJsonAsync(response);
-        Assert.Equal(expected, json.RootElement.GetProperty(propertyName).GetString());
-    }
 
     private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response)
     {

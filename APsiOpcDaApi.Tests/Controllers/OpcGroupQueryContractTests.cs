@@ -134,12 +134,7 @@ public sealed class OpcGroupQueryContractTests
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Equal(GroupId, Assert.Single(groupService.GroupWithTagsRequests));
-        using var json = await ReadJsonAsync(response);
-        Assert.Equal(404, json.RootElement.GetProperty("status").GetInt32());
-        Assert.Equal("Not Found", json.RootElement.GetProperty("title").GetString());
-        Assert.Equal(
-            "https://tools.ietf.org/html/rfc9110#section-15.5.5",
-            json.RootElement.GetProperty("type").GetString());
+        await SafeProblemAssertions.AssertAsync(response, "RESOURCE_NOT_FOUND");
     }
 
     private static OpcDaApiFactory CreateFactory(FakeOpcGroupService groupService) =>

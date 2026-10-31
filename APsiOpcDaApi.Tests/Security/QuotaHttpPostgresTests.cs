@@ -33,7 +33,9 @@ public sealed class QuotaHttpPostgresTests
     public async Task ResourceQuotaAndHttpReceiptCommitReplayAndRollbackTogether()
     {
         // Never infer a local/default server. The runner must name a disposable server.
-        var configured=Environment.GetEnvironmentVariable("APSIC_TEST_POSTGRES_CONNECTION")
+        await using var owned=APsiC.Licensing.Tests.OwnedWindowsPostgres.FromEnvironment();
+        if(owned is not null) await owned.Start();
+        var configured=owned?.Connection ?? Environment.GetEnvironmentVariable("APSIC_TEST_POSTGRES_CONNECTION")
             ??throw new InvalidOperationException("DISPOSABLE_POSTGRES_REQUIRED");
         var builder=new NpgsqlConnectionStringBuilder(configured){Pooling=false};
         var database="apsic_da_http_"+Guid.NewGuid().ToString("N");

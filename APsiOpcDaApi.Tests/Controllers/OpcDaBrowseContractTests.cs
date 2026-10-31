@@ -96,12 +96,7 @@ public sealed class OpcDaBrowseContractTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Empty(browser.BrowseCalls);
 
-        using var json = await ReadJsonAsync(response);
-        Assert.Equal(
-            "Servidor OPC não pertence à unidade selecionada.",
-            json.RootElement.GetProperty("message").GetString());
-        Assert.Equal(ServerId, json.RootElement.GetProperty("serverId").GetGuid());
-        Assert.Equal(outraUnidade, json.RootElement.GetProperty("unidadeId").GetGuid());
+        await SafeProblemAssertions.AssertAsync(response, "RESOURCE_NOT_FOUND");
     }
 
     [Fact]

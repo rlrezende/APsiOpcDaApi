@@ -23,8 +23,7 @@ namespace APsiOpcDaApi.API.Extensions
             IConfiguration configuration,
             IHostEnvironment environment)
         {
-            configuration = APsiC.Licensing.AspNetCore.InstalledAuthenticationConfiguration.ForHost(configuration);
-            services.AddSingleton<IConfiguration>(configuration);
+            services.AddSingleton<IConfiguration>(_ => APsiC.Licensing.AspNetCore.InstalledAuthenticationConfiguration.ForHost(configuration));
             // ConfiguraÃ§Ã£o do DbContext com Lazy Loading habilitado
             services.AddDbContext<APsiOpcDaApiContext>(options =>
                 options.UseLazyLoadingProxies() // Habilita Lazy Loading
@@ -153,9 +152,6 @@ namespace APsiOpcDaApi.API.Extensions
 
         private static void ConfigureAuthentication(IServiceCollection services, IConfiguration configuration)
         {
-            // Chave secreta usada para gerar o token JWT
-            var key = Encoding.ASCII.GetBytes(configuration["Jwt:Secret"] ?? "default-secret-key");
-
             services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -163,6 +159,11 @@ namespace APsiOpcDaApi.API.Extensions
             })
             .AddJwtBearer(options =>
             {
+                var authenticationConfiguration = APsiC.Licensing.AspNetCore.InstalledAuthenticationConfiguration.ForHost(configuration);
+                // Chave secreta usada para gerar o token JWT
+                var key = Encoding.ASCII.GetBytes(authenticationConfiguration["Jwt:Secret"] ?? "default-secret-key");
+
+
                 options.RequireHttpsMetadata = false;
                 options.SaveToken = true;
                 options.TokenValidationParameters = new TokenValidationParameters
@@ -170,9 +171,9 @@ namespace APsiOpcDaApi.API.Extensions
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(key),
                     ValidateIssuer = true,
-                    ValidIssuer = configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("JWT_ISSUER_REQUIRED"),
+                    ValidIssuer = authenticationConfiguration["Jwt:Issuer"] ?? throw new InvalidOperationException("JWT_ISSUER_REQUIRED"),
                     ValidateAudience = true,
-                    ValidAudience = configuration["Jwt:Audience"] ?? throw new InvalidOperationException("JWT_AUDIENCE_REQUIRED"),
+                    ValidAudience = authenticationConfiguration["Jwt:Audience"] ?? throw new InvalidOperationException("JWT_AUDIENCE_REQUIRED"),
                     ValidateLifetime = true,
                     RequireExpirationTime = true,
                     RequireSignedTokens = true,

@@ -35,4 +35,5 @@
   <ItemGroup><None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
   <ItemGroup><Compile Include="../../APsiCLicensing/tests/TestAuthority.cs" Link="TestAuthority.cs" /></ItemGroup>
   <ItemGroup><Compile Include="../../APsiCLicensing/tests/ConnectionSecretUpdateTests.cs" Link="Security/ConnectionSecretUpdateTests.cs" /></ItemGroup>
+<ItemGroup><Compile Include="../../APsiCLicensing/tests/TestHostAuthenticationSource.cs" Link="Security/TestHostAuthenticationSource.cs" /><Compile Include="../../APsiCLicensing/tests/APsiC.Licensing.Tests/OwnedWindowsPostgres.cs" Link="Integration/OwnedWindowsPostgres.cs" /></ItemGroup>
 </Project>

@@ -100,10 +100,7 @@ public sealed class OpcDaDiscoveryContractTests
         var response = await client.GetAsync($"/api/opcda/discover-local?unidadeId={UnidadeId}&host=servidor-alvo");
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
-        await using var stream = await response.Content.ReadAsStreamAsync();
-        using var json = await JsonDocument.ParseAsync(stream);
-        Assert.Equal("Erro ao descobrir servidores OPC DA.", json.RootElement.GetProperty("message").GetString());
-        Assert.Equal("falha deterministica", json.RootElement.GetProperty("error").GetString());
+        await SafeProblemAssertions.AssertAsync(response, "OPERATION_UNAVAILABLE");
         Assert.Equal(["servidor-alvo"], enumerator.RequestedHosts);
         factory.OpcServerService.Verify(
             service => service.AddAsync(It.IsAny<Application.DTOs.OpcServerDTO>()),
